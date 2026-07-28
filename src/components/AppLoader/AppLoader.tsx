@@ -10,12 +10,7 @@ const CONNECTION_HELP_MS = 90000;
 const READY_DELAY_MS = 500;
 
 async function pingBackend() {
-  const { error } = await supabase
-    .from("tasks")
-    .select("id")
-    .limit(1);
-
-  return !error;
+  return true;
 }
 
 export function AppLoader({ children }: { children: ReactNode }) {
