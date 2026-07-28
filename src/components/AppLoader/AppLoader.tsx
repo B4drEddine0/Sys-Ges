@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { buildApiUrl } from '@/lib/apiConfig';
 import { LoadingScreen } from '@/components/AppLoader/LoadingScreen';
+import { supabase } from '@/lib/supabase';
 
 const HEALTH_CHECK_PATH = '/tasks?_limit=1';
 const RETRY_INTERVAL_MS = 2500;
@@ -10,22 +10,12 @@ const CONNECTION_HELP_MS = 90000;
 const READY_DELAY_MS = 500;
 
 async function pingBackend() {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const { error } = await supabase
+    .from("tasks")
+    .select("id")
+    .limit(1);
 
-  try {
-    const response = await fetch(buildApiUrl(HEALTH_CHECK_PATH), {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
+  return !error;
 }
 
 export function AppLoader({ children }: { children: ReactNode }) {
