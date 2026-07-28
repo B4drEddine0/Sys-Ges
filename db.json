@@ -1,0 +1,1126 @@
+{
+  "users": [
+    {
+      "id": "me",
+      "name": "Me",
+      "avatar": "ME",
+      "color": "#2563eb"
+    },
+    {
+      "id": "friend",
+      "name": "My Friend",
+      "avatar": "FR",
+      "color": "#0f766e"
+    }
+  ],
+  "sections": [
+    {
+      "id": "frontend",
+      "name": "Frontend",
+      "color": "#2563eb",
+      "order": 0
+    },
+    {
+      "id": "backend",
+      "name": "Backend",
+      "color": "#0f766e",
+      "order": 1
+    }
+  ],
+  "labels": [
+    {
+      "id": "api",
+      "name": "API",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "auth",
+      "name": "Auth",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "backend",
+      "name": "Backend",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "bug",
+      "name": "Bug",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "database",
+      "name": "Database",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "deployment",
+      "name": "Deployment",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "frontend",
+      "name": "Frontend",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "p0",
+      "name": "P0",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "p1",
+      "name": "P1",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "p2",
+      "name": "P2",
+      "color": "#7c3aed",
+      "createdAt": "2026-07-27T14:29:37.838Z"
+    },
+    {
+      "id": "performance",
+      "name": "Performance",
+      "color": "#0f766e",
+      "createdAt": "2026-07-27T14:29:37.838Z"
+    },
+    {
+      "id": "refactor",
+      "name": "Refactor",
+      "color": "#2563eb",
+      "createdAt": "2026-07-27T14:29:37.838Z"
+    },
+    {
+      "id": "responsive",
+      "name": "Responsive",
+      "color": "#475569",
+      "createdAt": "2026-07-27T14:29:37.838Z"
+    },
+    {
+      "id": "shared",
+      "name": "Shared",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "testing",
+      "name": "Testing",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "ui",
+      "name": "UI",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    },
+    {
+      "id": "ux",
+      "name": "UX",
+      "color": "#64748b",
+      "createdAt": "2026-07-27T14:29:37.847Z"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "sgp-001-1",
+      "createdAt": "2026-07-26T14:29:37.847Z",
+      "updatedAt": "2026-07-28T08:29:02.772Z",
+      "completedAt": null,
+      "title": "Define MVP scope",
+      "description": "Freeze first release scope (must-have screens, endpoints, reports, roles).",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "shared",
+        "p0",
+        "deployment"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-30",
+      "notes": "Approved MVP checklist exists.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 6.5,
+      "archived": false
+    },
+    {
+      "id": "sgp-002-2",
+      "title": "Define domain language and contexts (DDD)",
+      "description": "Write bounded contexts: Plaintes, RDV, Statistiques, Identity/Admin, ReferenceData, Notifications.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "shared",
+        "p0",
+        "backend"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-31",
+      "createdAt": "2026-07-25T14:29:37.847Z",
+      "updatedAt": "2026-07-27T13:29:37.847Z",
+      "completedAt": null,
+      "notes": "Context map + glossary approved.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 1,
+      "archived": false
+    },
+    {
+      "id": "sgp-003-3",
+      "title": "API contract-first design",
+      "description": "Define OpenAPI contracts for MVP endpoints before coding UI.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "shared",
+        "p0",
+        "ui",
+        "api"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-01",
+      "createdAt": "2026-07-24T14:29:37.847Z",
+      "updatedAt": "2026-07-27T12:29:37.847Z",
+      "completedAt": null,
+      "notes": "Versioned API spec published.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 2,
+      "archived": false
+    },
+    {
+      "id": "sgp-004-4",
+      "title": "Data migration strategy",
+      "description": "Decide legacy-to-new data import approach (full migration, phased, or hybrid).",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "shared",
+        "p1",
+        "database"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-06",
+      "createdAt": "2026-07-23T14:29:37.847Z",
+      "updatedAt": "2026-07-27T11:29:37.847Z",
+      "completedAt": null,
+      "notes": "Migration runbook drafted.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 3,
+      "archived": false
+    },
+    {
+      "id": "sgp-005-5",
+      "title": "Security and compliance baseline",
+      "description": "Password policy, role policy, secret storage, audit fields, PII handling.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "shared",
+        "p0",
+        "auth"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-03",
+      "createdAt": "2026-07-22T14:29:37.847Z",
+      "updatedAt": "2026-07-27T10:29:37.847Z",
+      "completedAt": null,
+      "notes": "Security checklist attached to Definition of Done. ---",
+      "subtasks": [],
+      "attachments": [],
+      "order": 4,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-001-6",
+      "title": "Create solution skeleton",
+      "description": "Create projects: Domain, Application, Infrastructure, API, Tests.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0",
+        "api"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-30",
+      "createdAt": "2026-07-21T14:29:37.847Z",
+      "updatedAt": "2026-07-27T09:29:37.847Z",
+      "completedAt": null,
+      "notes": "Solution builds and health endpoint works.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 5,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-002-7",
+      "title": "Implement authentication and authorization",
+      "description": "ASP.NET Core Identity/JWT + role-based policies matching business roles.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-31",
+      "createdAt": "2026-07-20T14:29:37.847Z",
+      "updatedAt": "2026-07-27T08:29:37.847Z",
+      "completedAt": null,
+      "notes": "Login + protected endpoint checks pass.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 6,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-003-8",
+      "title": "Model core domain entities",
+      "description": "Implement entities/aggregates for Plainte, Justiciable, Dossier, Decision, DemandeRDV, Statut.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-01",
+      "createdAt": "2026-07-19T14:29:37.847Z",
+      "updatedAt": "2026-07-27T07:29:37.847Z",
+      "completedAt": null,
+      "notes": "Domain model compiles with invariants and unit tests.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 7,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-004-9",
+      "title": "Implement reference data module",
+      "description": "CRUD/read APIs for Source, Type, Classifications, ProfilAccuse, etc.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0",
+        "database"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-02",
+      "createdAt": "2026-07-18T14:29:37.847Z",
+      "updatedAt": "2026-07-27T06:29:37.847Z",
+      "completedAt": null,
+      "notes": "Frontend can consume reference endpoints for forms.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 8,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-005-10",
+      "title": "Plainte API v1",
+      "description": "Endpoints for create/update/detail/list/search/status changes.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0",
+        "api"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-03",
+      "createdAt": "2026-07-17T14:29:37.847Z",
+      "updatedAt": "2026-07-27T05:29:37.847Z",
+      "completedAt": null,
+      "notes": "Core plainte workflow test scenarios pass.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 9,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-006-11",
+      "title": "DemandeRDV API v1",
+      "description": "Endpoints for creation, scheduling states, cancellation reason, history.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0",
+        "api"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-30",
+      "createdAt": "2026-07-16T14:29:37.847Z",
+      "updatedAt": "2026-07-27T04:29:37.847Z",
+      "completedAt": null,
+      "notes": "RDV end-to-end scenarios pass in API tests.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 10,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-007-12",
+      "title": "Statistique and reporting queries",
+      "description": "Build filtered query endpoints for operational and global statistics.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "backend",
+        "p1"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-04",
+      "createdAt": "2026-07-15T14:29:37.847Z",
+      "updatedAt": "2026-07-27T03:29:37.847Z",
+      "completedAt": null,
+      "notes": "Query contracts validated with sample datasets.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 11,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-008-13",
+      "title": "Notifications adapters (SMS/Email)",
+      "description": "Abstract providers and implement infrastructure adapters for SMTP and SMS gateway.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "backend",
+        "p1"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-05",
+      "createdAt": "2026-07-14T14:29:37.847Z",
+      "updatedAt": "2026-07-27T02:29:37.847Z",
+      "completedAt": null,
+      "notes": "Notification events send through test/staging providers.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 12,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-009-14",
+      "title": "Export services",
+      "description": "Implement export handlers (Excel first, then PDF/Word) behind interfaces.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "backend",
+        "p1",
+        "deployment"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-06",
+      "createdAt": "2026-07-13T14:29:37.847Z",
+      "updatedAt": "2026-07-27T01:29:37.847Z",
+      "completedAt": null,
+      "notes": "At least one export endpoint per module works.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 13,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-010-15",
+      "title": "Persistence and migrations",
+      "description": "EF Core mapping, migrations, indexes, transaction strategy.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-03",
+      "createdAt": "2026-07-12T14:29:37.847Z",
+      "updatedAt": "2026-07-27T00:29:37.847Z",
+      "completedAt": null,
+      "notes": "Database can be recreated from migrations in CI.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 14,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-011-16",
+      "title": "Observability and error handling",
+      "description": "Structured logging, global exception handling, correlation IDs.",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0",
+        "bug"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-30",
+      "createdAt": "2026-07-11T14:29:37.847Z",
+      "updatedAt": "2026-07-26T23:29:37.847Z",
+      "completedAt": null,
+      "notes": "Errors are traceable with actionable logs.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 15,
+      "archived": false
+    },
+    {
+      "id": "sgp-be-012-17",
+      "title": "Automated tests baseline",
+      "description": "Unit tests (domain/application) + integration tests (API + DB).",
+      "status": "todo",
+      "section": "backend",
+      "assigneeIds": [
+        "friend"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "backend",
+        "p0",
+        "api"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-31",
+      "createdAt": "2026-07-10T14:29:37.847Z",
+      "updatedAt": "2026-07-26T22:29:37.847Z",
+      "completedAt": null,
+      "notes": "CI fails on test failures. ---",
+      "subtasks": [],
+      "attachments": [],
+      "order": 16,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-001-18",
+      "title": "Create React app foundation",
+      "description": "Routing, layout shell, state management approach, API client setup.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "frontend",
+        "p0",
+        "api"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-01",
+      "createdAt": "2026-07-09T14:29:37.847Z",
+      "updatedAt": "2026-07-27T14:53:30.129Z",
+      "completedAt": null,
+      "notes": "App runs with env-based API URL.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 17,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-002-19",
+      "title": "Auth flow and role guards",
+      "description": "Login/logout, token lifecycle, protected routes, role-aware menu.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "frontend",
+        "p0",
+        "ux",
+        "auth"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-02",
+      "createdAt": "2026-07-08T14:29:37.847Z",
+      "updatedAt": "2026-07-28T08:22:31.582Z",
+      "completedAt": null,
+      "notes": "Unauthorized screens are blocked correctly.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 12.25,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-003-20",
+      "title": "Shared UI components",
+      "description": "Data table, filter bar, pagination, modal, form controls, validation messages.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "frontend",
+        "p0",
+        "ui",
+        "database"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-08-03",
+      "createdAt": "2026-07-07T14:29:37.847Z",
+      "updatedAt": "2026-07-26T19:29:37.847Z",
+      "completedAt": null,
+      "notes": "Reusable components used by 2+ features.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 19,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-004-21",
+      "title": "Plainte module screens",
+      "description": "List/search, create/edit form, detail timeline, status actions.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "frontend",
+        "p0"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-30",
+      "createdAt": "2026-07-06T14:29:37.847Z",
+      "updatedAt": "2026-07-26T18:29:37.847Z",
+      "completedAt": null,
+      "notes": "Main plainte user journey is fully usable.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 20,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-005-22",
+      "title": "DemandeRDV module screens",
+      "description": "List/search, create form, status updates, cancellation and history display.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "frontend",
+        "p0"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-31",
+      "createdAt": "2026-07-05T14:29:37.847Z",
+      "updatedAt": "2026-07-26T17:29:37.847Z",
+      "completedAt": null,
+      "notes": "RDV user journey is fully usable.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 21,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-006-23",
+      "title": "Statistique dashboards",
+      "description": "KPI cards, filtered tables/charts, drill-down links.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "frontend",
+        "p1"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-05",
+      "createdAt": "2026-07-04T14:29:37.847Z",
+      "updatedAt": "2026-07-28T08:22:30.389Z",
+      "completedAt": null,
+      "notes": "Priority dashboards match MVP expectations.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 12.25,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-007-24",
+      "title": "Export actions in UI",
+      "description": "Trigger and download Excel/PDF/Word exports with progress/error states.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "frontend",
+        "p1",
+        "ui",
+        "bug",
+        "deployment"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-06",
+      "createdAt": "2026-07-03T14:29:37.847Z",
+      "updatedAt": "2026-07-27T15:07:59.440Z",
+      "completedAt": null,
+      "notes": "Export UX works on major pages.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 7.5,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-008-25",
+      "title": "Reference data admin screens",
+      "description": "Manage source/type/classification/profile master data.",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "high",
+      "labelIds": [
+        "frontend",
+        "p1",
+        "database"
+      ],
+      "estimatedHours": 8,
+      "dueDate": "2026-08-07",
+      "createdAt": "2026-07-02T14:29:37.847Z",
+      "updatedAt": "2026-07-27T14:54:04.789Z",
+      "completedAt": null,
+      "notes": "Admin can maintain reference data without DB scripts.",
+      "subtasks": [],
+      "attachments": [],
+      "order": 22,
+      "archived": false
+    },
+    {
+      "id": "sgp-fe-009-26",
+      "title": "Test coverage baseline",
+      "description": "Component tests + critical flow tests (auth, plainte create/search, rdv create).",
+      "status": "todo",
+      "section": "frontend",
+      "assigneeIds": [
+        "me"
+      ],
+      "priority": "critical",
+      "labelIds": [
+        "frontend",
+        "p0",
+        "ux",
+        "auth",
+        "testing"
+      ],
+      "estimatedHours": 13,
+      "dueDate": "2026-07-30",
+      "createdAt": "2026-07-01T14:29:37.847Z",
+      "updatedAt": "2026-07-27T14:53:07.341Z",
+      "completedAt": null,
+      "notes": "Frontend CI test job is green. ---",
+      "subtasks": [],
+      "attachments": [],
+      "order": 24,
+      "archived": false
+    }
+  ],
+  "activities": [
+    {
+      "id": "activity-1",
+      "taskId": "sgp-001-1",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Define MVP scope",
+      "createdAt": "2026-07-26T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-2",
+      "taskId": "sgp-002-2",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Define domain language and contexts (DDD)",
+      "createdAt": "2026-07-25T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-3",
+      "taskId": "sgp-003-3",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "API contract-first design",
+      "createdAt": "2026-07-24T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-4",
+      "taskId": "sgp-004-4",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Data migration strategy",
+      "createdAt": "2026-07-23T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-5",
+      "taskId": "sgp-005-5",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Security and compliance baseline",
+      "createdAt": "2026-07-22T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-6",
+      "taskId": "sgp-be-001-6",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Create solution skeleton",
+      "createdAt": "2026-07-21T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-7",
+      "taskId": "sgp-be-002-7",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Implement authentication and authorization",
+      "createdAt": "2026-07-20T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-8",
+      "taskId": "sgp-be-003-8",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Model core domain entities",
+      "createdAt": "2026-07-19T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-9",
+      "taskId": "sgp-be-004-9",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Implement reference data module",
+      "createdAt": "2026-07-18T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-10",
+      "taskId": "sgp-be-005-10",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Plainte API v1",
+      "createdAt": "2026-07-17T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-11",
+      "taskId": "sgp-be-006-11",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "DemandeRDV API v1",
+      "createdAt": "2026-07-16T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-12",
+      "taskId": "sgp-be-007-12",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Statistique and reporting queries",
+      "createdAt": "2026-07-15T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-13",
+      "taskId": "sgp-be-008-13",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Notifications adapters (SMS/Email)",
+      "createdAt": "2026-07-14T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-14",
+      "taskId": "sgp-be-009-14",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Export services",
+      "createdAt": "2026-07-13T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-15",
+      "taskId": "sgp-be-010-15",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Persistence and migrations",
+      "createdAt": "2026-07-12T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-16",
+      "taskId": "sgp-be-011-16",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Observability and error handling",
+      "createdAt": "2026-07-11T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-17",
+      "taskId": "sgp-be-012-17",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Automated tests baseline",
+      "createdAt": "2026-07-10T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-18",
+      "taskId": "sgp-fe-001-18",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Create React app foundation",
+      "createdAt": "2026-07-09T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-19",
+      "taskId": "sgp-fe-002-19",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Auth flow and role guards",
+      "createdAt": "2026-07-08T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-20",
+      "taskId": "sgp-fe-003-20",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Shared UI components",
+      "createdAt": "2026-07-07T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-21",
+      "taskId": "sgp-fe-004-21",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Plainte module screens",
+      "createdAt": "2026-07-06T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-22",
+      "taskId": "sgp-fe-005-22",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "DemandeRDV module screens",
+      "createdAt": "2026-07-05T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-23",
+      "taskId": "sgp-fe-006-23",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Statistique dashboards",
+      "createdAt": "2026-07-04T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-24",
+      "taskId": "sgp-fe-007-24",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Export actions in UI",
+      "createdAt": "2026-07-03T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-25",
+      "taskId": "sgp-fe-008-25",
+      "actorId": "me",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Reference data admin screens",
+      "createdAt": "2026-07-02T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    },
+    {
+      "id": "activity-26",
+      "taskId": "sgp-fe-009-26",
+      "actorId": "friend",
+      "type": "task_created",
+      "title": "Task created from markdown import",
+      "description": "Test coverage baseline",
+      "createdAt": "2026-07-01T14:29:37.847Z",
+      "meta": {
+        "source": "markdown-import"
+      }
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
+}
