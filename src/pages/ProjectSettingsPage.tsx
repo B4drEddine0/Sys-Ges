@@ -109,6 +109,29 @@ export function ProjectSettingsPage() {
 
   const inviteMemberMutation = useMutation({
     mutationFn: async (data: InviteMemberFormData) => {
+      // 1. Check if the user already has an account on the platform
+      const { data: existingProfiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', data.email);
+
+      if (profileError) throw profileError;
+
+      // 2. If they already exist, add them directly to the project!
+      if (existingProfiles && existingProfiles.length > 0) {
+        const { error: memberError } = await supabase
+          .from('project_members')
+          .insert({
+            project_id: projectId!,
+            user_id: existingProfiles[0].id,
+            role: data.role,
+          });
+
+        if (memberError) throw memberError;
+        return { type: 'member', email: data.email };
+      }
+
+      // 3. If they don't exist yet, create a pending invitation
       const { data: invitation, error } = await supabase
         .from('project_invitations')
         .insert({
@@ -121,12 +144,17 @@ export function ProjectSettingsPage() {
         .single();
 
       if (error) throw error;
-      return invitation;
+      return { type: 'invitation', ...invitation };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setIsInviteModalOpen(false);
       resetInvite();
-      pushToast({ title: 'Invitation sent', description: 'User has been invited to the project.' });
+      if (data.type === 'member') {
+        queryClient.invalidateQueries({ queryKey: ['project-members', projectId] });
+        pushToast({ title: 'User added', description: 'User was already registered and has been added to the project!' });
+      } else {
+        pushToast({ title: 'Invitation sent', description: 'User has been invited and will be added upon registration.' });
+      }
     },
     onError: (err: Error) => pushToast({ title: 'Error inviting user', description: err.message, variant: 'destructive' }),
   });
