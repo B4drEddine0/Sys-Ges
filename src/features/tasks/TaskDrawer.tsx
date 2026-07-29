@@ -9,8 +9,7 @@ import type { Activity as ActivityType, Task } from '@/types';
 import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from './taskHooks';
 import { useToast } from '@/providers/ToastProvider';
 import { format, parseISO } from 'date-fns';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import JoditEditor from 'jodit-react';
 
 const taskSchema = z.object({
   id: z.string().optional(),
@@ -169,7 +168,7 @@ export function TaskDrawer({
                 name="description"
                 control={form.control}
                 render={({ field }) => (
-                  <ReactQuill theme="snow" value={field.value} onChange={field.onChange} className="dark:text-foreground" />
+                  <JoditEditor value={field.value} onBlur={field.onChange} config={{ theme: 'dark' }} />
                 )}
               />
             </div>
@@ -319,7 +318,7 @@ export function TaskDrawer({
               name="notes"
               control={form.control}
               render={({ field }) => (
-                <ReactQuill theme="snow" value={field.value} onChange={field.onChange} className="dark:text-foreground" />
+                <JoditEditor value={field.value} onBlur={field.onChange} config={{ theme: 'dark' }} />
               )}
             />
           </div>
