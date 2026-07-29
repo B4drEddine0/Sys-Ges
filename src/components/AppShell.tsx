@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban } from 'lucide-react';
-import { Button, Input } from './ui';
+import { Button, Input, Avatar } from './ui';
 import { useShell } from '@/providers/ShellProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useAuth } from '@/providers/AuthProvider';
@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* User section */}
         <div className="mt-auto space-y-2 pt-6 border-t border-border">
           <button onClick={() => navigate('/profile')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-muted">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">{initials}</div>
+            <Avatar name={initials} color="#2563eb" src={profile?.avatar_url} className="h-8 w-8" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{profile?.display_name ?? 'User'}</p>
               <p className="truncate text-xs text-muted-foreground">{profile?.email}</p>
@@ -123,8 +123,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Button variant="secondary" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="shrink-0">
               {theme === 'dark' ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </Button>
-            <button onClick={() => navigate('/profile')} className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground lg:hidden">
-              {initials}
+            <button onClick={() => navigate('/profile')} className="flex items-center justify-center lg:hidden">
+              <Avatar name={initials} color="#2563eb" src={profile?.avatar_url} className="h-9 w-9" />
             </button>
           </div>
         </header>

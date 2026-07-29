@@ -152,7 +152,11 @@ export function useTaskMutations() {
     },
     onSuccess: async (_data, _taskId, context) => {
       if (context?.deletedTask) {
-        await createActivity(null, 'task_deleted', 'Task deleted', context.deletedTask.title);
+        try {
+          await createActivity(null, 'task_deleted', 'Task deleted', context.deletedTask.title);
+        } catch (e) {
+          console.error('Failed to log delete activity:', e);
+        }
       }
       await invalidate();
     },

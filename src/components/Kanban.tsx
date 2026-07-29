@@ -14,6 +14,7 @@ interface UserLike {
   name: string;
   avatar: string;
   color: string;
+  avatarUrl?: string | null;
 }
 
 function getPriorityTone(priority: Task['priority']) {
@@ -35,6 +36,12 @@ function getAssigneeColor(task: Task, users: UserLike[]) {
   if (!task.assigneeIds.length) return '#64748b';
   const firstAssignee = users.find((user) => user.id === task.assigneeIds[0]);
   return firstAssignee?.color ?? '#2563eb';
+}
+
+function getAssigneeAvatarUrl(task: Task, users: UserLike[]) {
+  if (!task.assigneeIds.length) return null;
+  const firstAssignee = users.find((user) => user.id === task.assigneeIds[0]);
+  return firstAssignee?.avatarUrl ?? null;
 }
 
 function formatDueDate(value: string | null) {
@@ -96,7 +103,7 @@ function TaskCard({ task, labels, users, selected, onToggleSelect, onOpen }: {
 
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Avatar name={getAssignee(task, users).slice(0, 2).toUpperCase()} color={getAssigneeColor(task, users)} />
+              <Avatar name={getAssignee(task, users).slice(0, 2).toUpperCase()} color={getAssigneeColor(task, users)} src={getAssigneeAvatarUrl(task, users)} />
               <span className="truncate">{getAssignee(task, users)}</span>
             </div>
             <div className="flex items-center gap-2">

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/ToastProvider';
-import { Button, Input, Card } from '@/components/ui';
+import { Button, Input, Card, Avatar } from '@/components/ui';
 
 interface ProfileFormData {
   display_name: string;
@@ -73,9 +73,7 @@ export function ProfilePage() {
       <Card className="p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="flex items-center space-x-6">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-2xl font-semibold text-accent-foreground">
-              {initials}
-            </div>
+            <Avatar name={initials} color="#2563eb" src={profile?.avatar_url} className="h-20 w-20 text-2xl" />
             <div>
               <h3 className="text-lg font-medium">{profile?.display_name || 'Anonymous User'}</h3>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>

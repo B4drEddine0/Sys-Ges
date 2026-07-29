@@ -52,8 +52,11 @@ export const Card = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEleme
   return <div ref={ref} className={cn('rounded-2xl border border-border bg-card text-card-foreground shadow-soft', className)} {...props} />;
 });
 
-export function Avatar({ name, color }: { name: string; color: string }) {
-  return <div className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ backgroundColor: color }}>{name}</div>;
+export function Avatar({ name, color, src, className }: { name: string; color: string; src?: string | null; className?: string }) {
+  if (src) {
+    return <img src={src} alt={name} className={cn("h-9 w-9 rounded-full object-cover", className)} />;
+  }
+  return <div className={cn("flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white", className)} style={{ backgroundColor: color }}>{name}</div>;
 }
 
 export function Skeleton({ className }: { className?: string }) {

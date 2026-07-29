@@ -307,7 +307,7 @@ export function TaskDrawer({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card/95 backdrop-blur pt-4 mt-8 sticky bottom-0 -mb-5 pb-5 -mx-6 px-6 z-10">
+        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4 mt-8 pb-4">
           <Button type="submit" disabled={form.formState.isSubmitting} className="min-w-24">
             <Save className="h-4 w-4 mr-2" /> {task ? 'Save Changes' : 'Create Task'}
           </Button>

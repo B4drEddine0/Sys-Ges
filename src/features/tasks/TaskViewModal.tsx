@@ -157,11 +157,11 @@ export function TaskViewModal({
                   <div>
                     <span className="text-xs text-muted-foreground block mb-1">Assignee</span>
                     {assignee ? (
-                      <div className="flex items-center gap-2">
+                      <div key={assignee.id} className="flex items-center gap-2">
                         <div className="scale-75 origin-left">
-                          <Avatar name={assignee.name.slice(0, 2).toUpperCase()} color={assignee.color} />
+                          <Avatar name={assignee.name.slice(0, 2).toUpperCase()} color={assignee.color} src={assignee.avatarUrl} />
                         </div>
-                        <span className="text-sm font-medium -ml-1">{assignee.name}</span>
+                        <span className="text-sm font-medium">{assignee.name}</span>
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground italic">Unassigned</span>
