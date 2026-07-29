@@ -168,7 +168,11 @@ export function TaskDrawer({
                 name="description"
                 control={form.control}
                 render={({ field }) => (
-                  <JoditEditor value={field.value} onBlur={field.onChange} config={{ theme: 'dark' }} />
+                  <JoditEditor 
+                    value={field.value} 
+                    onChange={(newContent) => field.onChange(newContent)} 
+                    config={{ theme: 'dark' }} 
+                  />
                 )}
               />
             </div>
@@ -318,7 +322,11 @@ export function TaskDrawer({
               name="notes"
               control={form.control}
               render={({ field }) => (
-                <JoditEditor value={field.value} onBlur={field.onChange} config={{ theme: 'dark' }} />
+                <JoditEditor 
+                  value={field.value} 
+                  onChange={(newContent) => field.onChange(newContent)} 
+                  config={{ theme: 'dark' }} 
+                />
               )}
             />
           </div>
