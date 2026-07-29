@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { AlertCircle, Trash2, UserMinus, UserPlus, Settings, Users } from 'lucide-react';
+import { AlertCircle, Trash2, UserMinus, UserPlus, Settings, Users, KanbanSquare, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { Button, Input, Textarea, Card, Badge, Avatar, Modal, Select } from '@/components/ui';
+import { useSectionsQuery } from '@/features/tasks/taskHooks';
 import type { Project, ProjectMember, MemberRole } from '@/types/project';
 import { cn } from '@/lib/cn';
 
@@ -81,6 +82,43 @@ export function ProjectSettingsPage() {
   const currentUserMember = members?.find((m) => m.user_id === user?.id);
   const isOwner = currentUserMember?.role === 'owner';
   const isAdmin = isOwner || currentUserMember?.role === 'admin';
+
+  const { data: sections = [] } = useSectionsQuery();
+  const [newSectionName, setNewSectionName] = useState('');
+
+  const createSectionMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase
+        .from('sections')
+        .insert({
+          project_id: projectId!,
+          name,
+          order_index: sections.length,
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sections', projectId] });
+      setNewSectionName('');
+      pushToast({ title: 'Section created', description: 'New board section added.' });
+    },
+    onError: (err: Error) => pushToast({ title: 'Error', description: err.message, variant: 'destructive' }),
+  });
+
+  const deleteSectionMutation = useMutation({
+    mutationFn: async (sectionId: string) => {
+      const { error } = await supabase
+        .from('sections')
+        .delete()
+        .eq('id', sectionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sections', projectId] });
+      pushToast({ title: 'Section removed', description: 'Board section removed.' });
+    },
+    onError: (err: Error) => pushToast({ title: 'Error', description: err.message, variant: 'destructive' }),
+  });
 
   const updateProjectMutation = useMutation({
     mutationFn: async (data: EditProjectFormData) => {
@@ -260,6 +298,59 @@ export function ProjectSettingsPage() {
               </Button>
             </div>
           </form>
+        </Card>
+      )}
+
+      {/* Board Sections */}
+      {isAdmin && (
+        <Card className="p-6 space-y-6">
+          <div className="flex items-center gap-2 border-b border-border pb-4">
+            <KanbanSquare className="text-muted-foreground" size={20} />
+            <h2 className="text-xl font-semibold">Board Sections</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="New section name (e.g. Design, Sprint 1)"
+                value={newSectionName}
+                onChange={(e) => setNewSectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newSectionName.trim()) {
+                    e.preventDefault();
+                    createSectionMutation.mutate(newSectionName.trim());
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                disabled={!newSectionName.trim() || createSectionMutation.isPending}
+                onClick={() => createSectionMutation.mutate(newSectionName.trim())}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Add
+              </Button>
+            </div>
+
+            <div className="space-y-2 mt-4">
+              {sections.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No custom sections. Default boards will be used.</p>
+              ) : (
+                sections.map((section) => (
+                  <div key={section.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-card/50">
+                    <span className="font-medium">{section.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteSectionMutation.mutate(section.id)}
+                      disabled={deleteSectionMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 text-rose-500" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </Card>
       )}
 

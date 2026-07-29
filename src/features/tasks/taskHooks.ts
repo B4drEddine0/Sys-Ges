@@ -136,6 +136,17 @@ export function useTaskMutations() {
 
   const patchTask = useMutation({
     mutationFn: ({ taskId, patch }: { taskId: string; patch: Partial<Task> }) => taskApi.patchTask(taskId, patch),
+    onMutate: async ({ taskId, patch }) => {
+      await queryClient.cancelQueries({ queryKey: keys.tasks });
+      const previous = queryClient.getQueryData<Task[]>(keys.tasks);
+      if (previous) {
+        queryClient.setQueryData<Task[]>(keys.tasks, previous.map((task) => (task.id === taskId ? { ...task, ...patch } : task)));
+      }
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(keys.tasks, context.previous);
+    },
     onSuccess: async (updated) => {
       await createActivity(updated.id, 'task_updated', 'Task updated', updated.title);
       await invalidate();
