@@ -25,7 +25,7 @@ function priorityWeight(priority: Priority) {
 
 export function BoardPage() {
   const params = useParams();
-  const section = params.sectionId === 'backend' ? 'backend' : 'frontend';
+  const section = params.sectionId;
   const { search } = useShell();
   const { data: tasks = [], isLoading } = useTasksQuery();
   const { data: users = [] } = useProjectMembersQuery();
