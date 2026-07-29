@@ -168,6 +168,7 @@ export function ChatPage() {
                   {!isConsecutive ? (
                     <Avatar 
                       name={msg.profile?.display_name?.slice(0,2).toUpperCase() || '??'} 
+                      color="bg-primary text-primary-foreground"
                       src={msg.profile?.avatar_url}
                       className="h-10 w-10 flex-shrink-0 shadow-sm" 
                     />
@@ -214,8 +215,8 @@ export function ChatPage() {
               />
               <Button 
                 type="submit" 
-                size="icon" 
-                className="absolute right-2 bottom-1.5 h-9 w-9 rounded-xl"
+                size="sm" 
+                className="absolute right-2 bottom-1.5 h-9 w-9 rounded-xl p-0 flex items-center justify-center"
                 disabled={!message.trim() || sendMessage.isPending}
               >
                 <Send className="h-4 w-4 ml-0.5" />

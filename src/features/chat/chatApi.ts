@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Profile } from '@/types';
+
 
 function assertNoError(error: any) {
   if (error) {
@@ -20,7 +20,7 @@ export interface ChatMessage {
   user_id: string;
   content: string;
   created_at: string;
-  profile?: Profile;
+  profile?: { id: string; display_name: string; avatar_url?: string };
 }
 
 export const chatApi = {
@@ -30,7 +30,7 @@ export const chatApi = {
       .select('*')
       .order('created_at', { ascending: false });
     assertNoError(error);
-    return data;
+    return data || [];
   },
 
   async createChat(name: string): Promise<Chat> {
@@ -79,7 +79,7 @@ export const chatApi = {
       .eq('chat_id', chatId)
       .order('created_at', { ascending: true });
     assertNoError(error);
-    return data;
+    return data || [];
   },
 
   async sendMessage(chatId: string, content: string): Promise<void> {
