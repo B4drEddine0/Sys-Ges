@@ -37,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const initials = (profile?.display_name ?? 'U').slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex min-h-full bg-background text-foreground">
+    <div className="flex h-full overflow-hidden bg-background text-foreground">
       <aside className="hidden w-72 shrink-0 border-r border-border bg-card/40 px-5 py-6 lg:flex lg:flex-col">
         <div className="mb-8">
           <div className="flex items-center gap-3">
@@ -131,7 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="min-h-0 flex-1">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto flex flex-col relative">{children}</main>
       </div>
     </div>
   );

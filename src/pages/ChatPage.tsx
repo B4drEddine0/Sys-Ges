@@ -75,7 +75,7 @@ export function ChatPage() {
   };
 
   return (
-    <div className="flex h-full w-full bg-background">
+    <div className="absolute inset-0 flex bg-background">
       {/* Sidebar */}
       <div className="w-80 flex-shrink-0 border-r border-border flex flex-col bg-muted/10">
         <div className="p-4 border-b border-border space-y-4">

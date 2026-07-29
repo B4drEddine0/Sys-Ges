@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Archive, Copy, Plus, Save, Trash2, Layout, Tag, ListTodo, Paperclip, FileText, Activity } from 'lucide-react';
@@ -9,6 +9,8 @@ import type { Activity as ActivityType, Task } from '@/types';
 import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from './taskHooks';
 import { useToast } from '@/providers/ToastProvider';
 import { format, parseISO } from 'date-fns';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const taskSchema = z.object({
   id: z.string().optional(),
@@ -162,7 +164,15 @@ export function TaskDrawer({
 
           <div>
             <label className="block text-sm font-medium mb-1.5">Description</label>
-            <Textarea {...form.register('description')} placeholder="Provide context, acceptance criteria, and details..." rows={4} />
+            <div className="bg-card rounded-md">
+              <Controller
+                name="description"
+                control={form.control}
+                render={({ field }) => (
+                  <ReactQuill theme="snow" value={field.value} onChange={field.onChange} className="dark:text-foreground" />
+                )}
+              />
+            </div>
           </div>
         </div>
 
@@ -304,7 +314,15 @@ export function TaskDrawer({
         {/* Internal Notes */}
         <div className="space-y-4">
           <SectionHeading title="Internal Notes" icon={FileText} />
-          <Textarea {...form.register('notes')} placeholder="Private implementation notes, edge cases, reminders..." rows={3} className="bg-muted/30" />
+          <div className="bg-card rounded-md">
+            <Controller
+              name="notes"
+              control={form.control}
+              render={({ field }) => (
+                <ReactQuill theme="snow" value={field.value} onChange={field.onChange} className="dark:text-foreground" />
+              )}
+            />
+          </div>
         </div>
 
         {/* Footer Actions */}

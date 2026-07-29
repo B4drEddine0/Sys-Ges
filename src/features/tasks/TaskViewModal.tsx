@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { format, isValid, parseISO } from 'date-fns';
 import { CalendarDays, Paperclip, MoreHorizontal, MessageSquare, CheckSquare, Clock, Archive, Edit2, Trash2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Avatar, Badge, Button, Modal, Progress } from '@/components/ui';
 import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from './taskHooks';
 import { useToast } from '@/providers/ToastProvider';
@@ -97,13 +95,10 @@ export function TaskViewModal({
             <div className="lg:col-span-2 space-y-8">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight mb-4">{task.title}</h1>
-                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
-                  {task.description ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.description}</ReactMarkdown>
-                  ) : (
-                    <span className="italic opacity-50">No description provided.</span>
-                  )}
-                </div>
+                <div 
+                  className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: task.description || '<span class="italic opacity-50">No description provided.</span>' }}
+                />
               </div>
 
               {/* Subtasks */}
@@ -141,9 +136,10 @@ export function TaskViewModal({
               {task.notes && (
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold">Notes</h3>
-                  <div className="p-4 rounded-xl bg-muted/30 text-sm border border-border prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.notes}</ReactMarkdown>
-                  </div>
+                  <div 
+                    className="p-4 rounded-xl bg-muted/30 prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
+                    dangerouslySetInnerHTML={{ __html: task.notes }}
+                  />
                 </div>
               )}
               {/* Comments Section */}
