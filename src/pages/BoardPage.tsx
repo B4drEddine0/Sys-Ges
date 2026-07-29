@@ -5,7 +5,7 @@ import { Badge, Button, Card, Modal, Select, Skeleton } from '@/components/ui';
 import { KanbanBoard } from '@/components/Kanban';
 import { TaskDrawer } from '@/features/tasks/TaskDrawer';
 import { TaskViewModal } from '@/features/tasks/TaskViewModal';
-import { useLabelsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from '@/features/tasks/taskHooks';
+import { useLabelsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery, useSectionsQuery } from '@/features/tasks/taskHooks';
 import { useShell } from '@/providers/ShellProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { sortOptions, taskStatuses } from '@/lib/constants';
@@ -205,6 +205,9 @@ export function BoardPage() {
     pushToast({ title: 'Task restored', description: task.title });
   };
 
+  const { data: sections = [] } = useSectionsQuery();
+  const sectionName = sections.find((s) => s.id === section)?.name ?? 'Board';
+
   if (isLoading) {
     return <div className="space-y-4 p-4 lg:p-6"><Skeleton className="h-28" /><Skeleton className="h-[40rem]" /></div>;
   }
@@ -217,7 +220,7 @@ export function BoardPage() {
       <Card className="p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">{section} board</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">{sectionName} board</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">Collaborative task board</h2>
             <p className="mt-1 text-sm text-muted-foreground">Search, filter, drag, and manage work with instant persistence.</p>
           </div>
