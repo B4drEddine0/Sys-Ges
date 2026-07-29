@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare } from 'lucide-react';
 import { Button, Input, Avatar } from './ui';
 import { useShell } from '@/providers/ShellProvider';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -50,9 +50,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="space-y-2 text-sm">
-          <button onClick={() => navigate('/projects')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted">
-            <FolderKanban className="h-4 w-4" />My Projects
-          </button>
+            <button onClick={() => navigate('/projects')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted">
+              <FolderKanban className="h-4 w-4" />All Projects
+            </button>
+            <button onClick={() => navigate('/chat')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted text-primary">
+              <MessageSquare className="h-4 w-4" />Team Chat
+            </button>
           {projectId && (
             <>
               <button onClick={() => navigate(`/project/${projectId}`)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted">

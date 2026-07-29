@@ -118,7 +118,8 @@ export function TaskDrawer({
 
   useEffect(() => {
     form.reset(toFormValues(task));
-  }, [task, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, form]);
 
   useEffect(() => {
     if (!task || !form.formState.isDirty) return;

@@ -13,6 +13,7 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { ChatPage } from '@/pages/ChatPage';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -71,6 +72,16 @@ export function App() {
         <Route path="/board/:sectionId" element={<ProtectedRoute><Navigate to="/projects" replace /></ProtectedRoute>} />
 
         {/* 404 */}
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <ChatPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </ErrorBoundary>
