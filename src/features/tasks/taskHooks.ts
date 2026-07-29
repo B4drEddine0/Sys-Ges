@@ -94,10 +94,14 @@ export function useTaskMutations() {
 
   const createActivity = async (taskId: string | null, type: string, title: string, description: string) => {
     if (!activeProjectId || !user) return;
-    await taskApi.createActivity(
-      { taskId, actorId: user.id, type, title, description },
-      activeProjectId,
-    );
+    try {
+      await taskApi.createActivity(
+        { taskId, actorId: user.id, type, title, description },
+        activeProjectId,
+      );
+    } catch (e) {
+      console.error('Failed to log activity (usually means profile is missing):', e);
+    }
   };
 
   const createTask = useMutation({
@@ -152,11 +156,7 @@ export function useTaskMutations() {
     },
     onSuccess: async (_data, _taskId, context) => {
       if (context?.deletedTask) {
-        try {
-          await createActivity(null, 'task_deleted', 'Task deleted', context.deletedTask.title);
-        } catch (e) {
-          console.error('Failed to log delete activity:', e);
-        }
+        await createActivity(null, 'task_deleted', 'Task deleted', context.deletedTask.title);
       }
       await invalidate();
     },
