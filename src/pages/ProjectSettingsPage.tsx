@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { AlertCircle, Trash2, UserMinus, UserPlus, Settings, Users, KanbanSquare, Plus } from 'lucide-react';
+import { AlertCircle, Trash2, UserMinus, UserPlus, Settings, Users, KanbanSquare, Plus, Tag } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { Button, Input, Textarea, Card, Badge, Avatar, Modal, Select } from '@/components/ui';
-import { useSectionsQuery } from '@/features/tasks/taskHooks';
+import { useSectionsQuery, useLabelsQuery } from '@/features/tasks/taskHooks';
 import type { Project, ProjectMember, MemberRole } from '@/types/project';
 import { cn } from '@/lib/cn';
 
@@ -85,6 +85,45 @@ export function ProjectSettingsPage() {
 
   const { data: sections = [] } = useSectionsQuery();
   const [newSectionName, setNewSectionName] = useState('');
+
+  const { data: labels = [] } = useLabelsQuery();
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState('#2563eb');
+
+  const createLabelMutation = useMutation({
+    mutationFn: async ({ name, color }: { name: string, color: string }) => {
+      const { error } = await supabase
+        .from('labels')
+        .insert({
+          id: crypto.randomUUID(),
+          project_id: projectId!,
+          name,
+          color,
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['labels', projectId] });
+      setNewLabelName('');
+      pushToast({ title: 'Label created', description: 'New custom label added.' });
+    },
+    onError: (err: Error) => pushToast({ title: 'Error', description: err.message, variant: 'destructive' }),
+  });
+
+  const deleteLabelMutation = useMutation({
+    mutationFn: async (labelId: string) => {
+      const { error } = await supabase
+        .from('labels')
+        .delete()
+        .eq('id', labelId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['labels', projectId] });
+      pushToast({ title: 'Label removed', description: 'Custom label removed.' });
+    },
+    onError: (err: Error) => pushToast({ title: 'Error', description: err.message, variant: 'destructive' }),
+  });
 
   const createSectionMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -347,6 +386,68 @@ export function ProjectSettingsPage() {
                     >
                       <Trash2 className="h-4 w-4 text-rose-500" />
                     </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Board Labels */}
+      {isAdmin && (
+        <Card className="p-6 space-y-6">
+          <div className="flex items-center gap-2 border-b border-border pb-4">
+            <Tag className="text-muted-foreground" size={20} />
+            <h2 className="text-xl font-semibold">Custom Labels</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Input
+                placeholder="New label name (e.g. Bug, Feature)"
+                value={newLabelName}
+                onChange={(e) => setNewLabelName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newLabelName.trim()) {
+                    e.preventDefault();
+                    createLabelMutation.mutate({ name: newLabelName.trim(), color: newLabelColor });
+                  }
+                }}
+              />
+              <div className="flex items-center gap-3">
+                <Input
+                  type="color"
+                  value={newLabelColor}
+                  onChange={(e) => setNewLabelColor(e.target.value)}
+                  className="w-16 h-10 p-1 cursor-pointer"
+                />
+                <Button
+                  type="button"
+                  disabled={!newLabelName.trim() || createLabelMutation.isPending}
+                  onClick={() => createLabelMutation.mutate({ name: newLabelName.trim(), color: newLabelColor })}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Add
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4">
+              {labels.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic w-full">No custom labels created yet.</p>
+              ) : (
+                labels.map((label) => (
+                  <div key={label.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card/50">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: label.color }} />
+                    <span className="text-sm font-medium">{label.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => deleteLabelMutation.mutate(label.id)}
+                      disabled={deleteLabelMutation.isPending}
+                      className="ml-1 text-muted-foreground hover:text-rose-500 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 ))
               )}

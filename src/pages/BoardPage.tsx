@@ -256,7 +256,7 @@ export function BoardPage() {
         </div>
       </Card>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0" onClick={() => setSelectedIds([])}>
         <KanbanBoard tasks={visibleTasks} labels={labels} users={users} selectedIds={selectedIds} onToggleSelect={toggleSelection} onOpen={(taskId) => setViewTaskId(taskId)} onMoveTask={moveTask} />
       </div>
 

@@ -83,9 +83,10 @@ function TaskCard({ task, labels, users, selected, onToggleSelect, onOpen }: {
   const labelRecords = getLabelById(task.labelIds, labels);
 
   return (
-    <Card ref={setNodeRef} style={style} className={cn('group relative cursor-grab active:cursor-grabbing hover:border-foreground/20 p-3 transition-colors', isDragging && 'opacity-50', selected && 'ring-2 ring-accent border-transparent')} {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}>
+    <Card ref={setNodeRef} style={style} className={cn('group relative cursor-grab active:cursor-grabbing hover:border-foreground/20 p-3 transition-colors', isDragging && 'opacity-50', selected && 'ring-2 ring-inset ring-primary border-transparent')} {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}>
       <div className="flex items-start gap-3">
         <Checkbox checked={selected} onChange={() => onToggleSelect(task.id)} className="mt-0.5 shrink-0" />
+        
         <div className="min-w-0 flex-1" onClick={() => onOpen(task.id)}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { format, isValid, parseISO } from 'date-fns';
-import { Archive, CalendarDays, CheckSquare, Clock, Edit2, MoreHorizontal, Paperclip, Trash2 } from 'lucide-react';
+import { CalendarDays, Paperclip, MoreHorizontal, MessageSquare, CheckSquare, Clock, Archive, Edit2, Trash2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Avatar, Badge, Button, Modal, Progress } from '@/components/ui';
 import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from './taskHooks';
 import { useToast } from '@/providers/ToastProvider';
@@ -95,8 +97,12 @@ export function TaskViewModal({
             <div className="lg:col-span-2 space-y-8">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight mb-4">{task.title}</h1>
-                <div className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                  {task.description || <span className="italic opacity-50">No description provided.</span>}
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
+                  {task.description ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.description}</ReactMarkdown>
+                  ) : (
+                    <span className="italic opacity-50">No description provided.</span>
+                  )}
                 </div>
               </div>
 
@@ -135,11 +141,24 @@ export function TaskViewModal({
               {task.notes && (
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold">Notes</h3>
-                  <div className="p-4 rounded-xl bg-muted/30 text-sm whitespace-pre-wrap border border-border">
-                    {task.notes}
+                  <div className="p-4 rounded-xl bg-muted/30 text-sm border border-border prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.notes}</ReactMarkdown>
                   </div>
                 </div>
               )}
+              {/* Comments Section */}
+              <div className="space-y-4 pt-6 border-t border-border mt-8">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                  Comments
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Local comments component will go here in the next step when we fetch them */}
+                  <p className="text-sm text-muted-foreground italic">Comments are ready to be used once the database migration is applied.</p>
+                </div>
+              </div>
+
             </div>
 
             {/* Sidebar (Right) */}
