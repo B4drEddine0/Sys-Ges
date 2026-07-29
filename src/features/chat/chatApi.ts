@@ -1,6 +1,11 @@
 import { supabase } from '@/lib/supabase';
-import { assertNoError } from '@/lib/utils';
 import type { Profile } from '@/types';
+
+function assertNoError(error: any) {
+  if (error) {
+    throw error;
+  }
+}
 
 export interface Chat {
   id: string;
