@@ -91,6 +91,7 @@ export function ProjectSettingsPage() {
       const { error } = await supabase
         .from('sections')
         .insert({
+          id: crypto.randomUUID(),
           project_id: projectId!,
           name,
           order_index: sections.length,
