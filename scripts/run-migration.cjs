@@ -7,6 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const sqlPath = path.join(__dirname, '..', 'supabase', 'migrations', '001_multi_user_schema.sql');
 const sql = fs.readFileSync(sqlPath, 'utf-8');
 
+
 async function run() {
   console.log('Executing SQL migration against Supabase...');
   console.log('SQL file:', sqlPath);
