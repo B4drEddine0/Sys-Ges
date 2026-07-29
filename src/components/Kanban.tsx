@@ -6,8 +6,15 @@ import { CalendarDays, MoreHorizontal, Paperclip } from 'lucide-react';
 import { Avatar, Badge, Card, Checkbox, Progress } from './ui';
 import { cn } from '@/lib/cn';
 import { priorities, taskStatuses } from '@/lib/constants';
-import type { Label, Task, User, TaskStatus } from '@/types';
+import type { Label, Task, TaskStatus } from '@/types';
 import { format, isValid, parseISO } from 'date-fns';
+
+interface UserLike {
+  id: string;
+  name: string;
+  avatar: string;
+  color: string;
+}
 
 function getPriorityTone(priority: Task['priority']) {
   return priorities.find((item) => item.id === priority)?.color ?? 'bg-slate-500/10 text-slate-700';
@@ -17,11 +24,17 @@ function getLabelById(labelIds: string[], labels: Label[]) {
   return labelIds.map((labelId) => labels.find((label) => label.id === labelId)).filter(Boolean) as Label[];
 }
 
-function getAssignee(task: Task, users: User[]) {
-  if (task.assigneeIds.includes('both')) return 'Both';
-  if (task.assigneeIds.includes('me')) return users.find((user) => user.id === 'me')?.name ?? 'Me';
-  if (task.assigneeIds.includes('friend')) return users.find((user) => user.id === 'friend')?.name ?? 'My Friend';
-  return 'Unassigned';
+function getAssignee(task: Task, users: UserLike[]) {
+  if (!task.assigneeIds.length) return 'Unassigned';
+  const firstAssignee = users.find((user) => user.id === task.assigneeIds[0]);
+  if (firstAssignee) return firstAssignee.name;
+  return 'Unknown';
+}
+
+function getAssigneeColor(task: Task, users: UserLike[]) {
+  if (!task.assigneeIds.length) return '#64748b';
+  const firstAssignee = users.find((user) => user.id === task.assigneeIds[0]);
+  return firstAssignee?.color ?? '#2563eb';
 }
 
 function formatDueDate(value: string | null) {
@@ -53,17 +66,17 @@ function SubtaskProgress({ task }: { task: Task }) {
 function TaskCard({ task, labels, users, selected, onToggleSelect, onOpen }: {
   task: Task;
   labels: Label[];
-  users: User[];
+  users: UserLike[];
   selected: boolean;
   onToggleSelect: (taskId: string) => void;
   onOpen: (taskId: string) => void;
 }) {
-  const sortable = useSortable({ id: task.id });
-  const style = { transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition };
+  const { setNodeRef, attributes, listeners, isDragging, transform, transition } = useSortable({ id: task.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
   const labelRecords = getLabelById(task.labelIds, labels);
 
   return (
-    <Card ref={sortable.setNodeRef} style={style} className={cn('group cursor-grab p-3 active:cursor-grabbing', sortable.isDragging && 'ring-2 ring-accent')} {...sortable.attributes} {...sortable.listeners}>
+    <Card ref={setNodeRef} style={style} className={cn('group relative cursor-grab active:cursor-grabbing hover:border-foreground/20 p-3 transition-colors', isDragging && 'opacity-50', selected && 'ring-2 ring-accent border-transparent')} {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}>
       <div className="flex items-start gap-3">
         <Checkbox checked={selected} onChange={() => onToggleSelect(task.id)} className="mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1" onClick={() => onOpen(task.id)}>
@@ -83,7 +96,7 @@ function TaskCard({ task, labels, users, selected, onToggleSelect, onOpen }: {
 
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Avatar name={getAssignee(task, users).slice(0, 2).toUpperCase()} color={task.assigneeIds.includes('friend') ? '#0f766e' : '#2563eb'} />
+              <Avatar name={getAssignee(task, users).slice(0, 2).toUpperCase()} color={getAssigneeColor(task, users)} />
               <span className="truncate">{getAssignee(task, users)}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -128,7 +141,7 @@ export function KanbanBoard({
 }: {
   tasks: Task[];
   labels: Label[];
-  users: User[];
+  users: UserLike[];
   selectedIds: string[];
   onToggleSelect: (taskId: string) => void;
   onOpen: (taskId: string) => void;

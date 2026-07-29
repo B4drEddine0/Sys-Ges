@@ -76,12 +76,12 @@ export function Panel({ title, children, action }: { title: string; children: Re
   );
 }
 
-export function Modal({ open, title, description, children, onClose }: { open: boolean; title: string; description?: string; children: ReactNode; onClose: () => void }) {
+export function Modal({ open, title, description, children, onClose, className }: { open: boolean; title: string; description?: string; children: ReactNode; onClose: () => void; className?: string }) {
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-4 py-6" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <div className={cn("w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl", className)} onClick={(event) => event.stopPropagation()}>
         <h2 className="text-lg font-semibold">{title}</h2>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
         <div className="mt-5">{children}</div>

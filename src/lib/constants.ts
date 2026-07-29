@@ -15,18 +15,6 @@ export const priorities: Array<{ id: Priority; label: string; color: string }> =
   { id: 'critical', label: 'Critical', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-300' },
 ];
 
-export const sectionTabs = [
-  { id: 'frontend', label: 'Frontend' },
-  { id: 'backend', label: 'Backend' },
-] as const;
-
-export const assigneeOptions = [
-  { id: 'unassigned', label: 'Unassigned' },
-  { id: 'me', label: 'Me' },
-  { id: 'friend', label: 'My Friend' },
-  { id: 'both', label: 'Both' },
-] as const;
-
 export const sortOptions = [
   { id: 'manual', label: 'Manual' },
   { id: 'newest', label: 'Newest' },
@@ -35,9 +23,4 @@ export const sortOptions = [
   { id: 'alphabetical', label: 'Alphabetical' },
   { id: 'updated', label: 'Updated' },
   { id: 'dueDate', label: 'Due Date' },
-] as const;
-
-export const userFilterOptions = [
-  { id: 'all', label: 'All users' },
-  ...assigneeOptions,
 ] as const;

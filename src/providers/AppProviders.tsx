@@ -4,18 +4,21 @@ import { queryClient } from '@/lib/queryClient';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 import { ShellProvider } from '@/providers/ShellProvider';
-import { AppLoader } from '@/components/AppLoader';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { ProjectProvider } from '@/providers/ProjectProvider';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider>
-      <AppLoader>
-        <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <ShellProvider>{children}</ShellProvider>
-          </ToastProvider>
-        </QueryClientProvider>
-      </AppLoader>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <AuthProvider>
+            <ProjectProvider>
+              <ShellProvider>{children}</ShellProvider>
+            </ProjectProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

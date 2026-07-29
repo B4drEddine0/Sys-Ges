@@ -1,19 +1,6 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { buildSeedDatabase } from '@/features/importer/markdownImporter';
+// Legacy seed script — no longer used.
+// Database seeding is now handled through the Supabase dashboard
+// or through the app's project creation flow.
 
-const root = resolve(process.cwd());
-const markdownPath = resolve(root, 'tasks.md');
-const outputPath = resolve(root, 'db.json');
-
-async function main() {
-  const markdown = await readFile(markdownPath, 'utf8');
-  const database = buildSeedDatabase(markdown);
-  await writeFile(outputPath, `${JSON.stringify(database, null, 2)}\n`, 'utf8');
-  console.log(`Seed database written to ${outputPath}`);
-}
-
-void main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+console.log('This seed script is deprecated. Use the app UI to create projects and tasks.');
+process.exit(0);

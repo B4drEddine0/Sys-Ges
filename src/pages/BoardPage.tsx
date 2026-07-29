@@ -4,10 +4,11 @@ import { Archive, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, Modal, Select, Skeleton } from '@/components/ui';
 import { KanbanBoard } from '@/components/Kanban';
 import { TaskDrawer } from '@/features/tasks/TaskDrawer';
-import { useLabelsQuery, useTaskMutations, useTasksQuery, useUsersQuery } from '@/features/tasks/taskHooks';
+import { TaskViewModal } from '@/features/tasks/TaskViewModal';
+import { useLabelsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from '@/features/tasks/taskHooks';
 import { useShell } from '@/providers/ShellProvider';
 import { useToast } from '@/providers/ToastProvider';
-import { assigneeOptions, sectionTabs, sortOptions, taskStatuses, userFilterOptions } from '@/lib/constants';
+import { sortOptions, taskStatuses } from '@/lib/constants';
 import type { Priority, Task, TaskStatus } from '@/types';
 
 type SortKey = typeof sortOptions[number]['id'];
@@ -27,7 +28,7 @@ export function BoardPage() {
   const section = params.sectionId === 'backend' ? 'backend' : 'frontend';
   const { search } = useShell();
   const { data: tasks = [], isLoading } = useTasksQuery();
-  const { data: users = [] } = useUsersQuery();
+  const { data: users = [] } = useProjectMembersQuery();
   const { data: labels = [] } = useLabelsQuery();
   const { createTask, updateTask, patchTask, deleteTask } = useTaskMutations();
   const { pushToast } = useToast();
@@ -37,10 +38,12 @@ export function BoardPage() {
   const [confirmTask, setConfirmTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all');
-  const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'me' | 'friend' | 'both' | 'unassigned'>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
   const [labelFilter, setLabelFilter] = useState<'all' | string>('all');
   const [archivedFilter, setArchivedFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [sortKey, setSortKey] = useState<SortKey>('manual');
+
+  const [viewTaskId, setViewTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -60,6 +63,7 @@ export function BoardPage() {
       }
       if (event.key === 'Escape') {
         setDrawerTaskId(null);
+        setViewTaskId(null);
         setConfirmTask(null);
         setSelectedIds([]);
       }
@@ -80,15 +84,25 @@ export function BoardPage() {
 
   const labelMap = useMemo(() => Object.fromEntries(labels.map((label) => [label.id, label.name])), [labels]);
 
+  // Build member filter options dynamically from project members
+  const memberFilterOptions = useMemo(() => {
+    const options: Array<{ id: string; label: string }> = [{ id: 'all', label: 'All members' }];
+    users.forEach((u) => {
+      options.push({ id: u.id, label: u.name });
+    });
+    options.push({ id: 'unassigned', label: 'Unassigned' });
+    return options;
+  }, [users]);
+
   const visibleTasks = useMemo(() => {
     const list = tasks.filter((task) => task.section === section);
 
     return list.filter((task) => {
-      const assigneeLabel = task.assigneeIds.includes('both') ? 'both' : task.assigneeIds[0] ?? 'unassigned';
+      const assigneeLabel = task.assigneeIds[0] ?? 'unassigned';
       const queryMatch = matchesQuery(task, search, labelMap, assigneeLabel);
       const statusMatch = statusFilter === 'all' || task.status === statusFilter;
       const priorityMatch = priorityFilter === 'all' || task.priority === priorityFilter;
-      const assigneeMatch = assigneeFilter === 'all' || assigneeLabel === assigneeFilter;
+      const assigneeMatch = assigneeFilter === 'all' || task.assigneeIds.includes(assigneeFilter) || (assigneeFilter === 'unassigned' && task.assigneeIds.length === 0);
       const labelMatch = labelFilter === 'all' || task.labelIds.includes(labelFilter);
       const archivedMatch = archivedFilter === 'all' || (archivedFilter === 'archived' ? task.archived : !task.archived);
       return queryMatch && statusMatch && priorityMatch && assigneeMatch && labelMatch && archivedMatch;
@@ -145,9 +159,13 @@ export function BoardPage() {
     pushToast({ title: 'Tasks deleted', description: `${ids.length} task${ids.length === 1 ? '' : 's'} removed` });
   };
 
-  const bulkArchive = async () => {
-    await Promise.all(selectedIds.map((taskId) => patchTask.mutateAsync({ taskId, patch: { archived: true } })));
-    pushToast({ title: 'Tasks archived', description: `${selectedIds.length} task${selectedIds.length === 1 ? '' : 's'} archived` });
+  const bulkToggleArchive = async () => {
+    const selectedTasks = tasks.filter(t => selectedIds.includes(t.id));
+    const allArchived = selectedTasks.length > 0 && selectedTasks.every(t => t.archived);
+    const isArchiving = !allArchived;
+    
+    await Promise.all(selectedIds.map((taskId) => patchTask.mutateAsync({ taskId, patch: { archived: isArchiving } })));
+    pushToast({ title: isArchiving ? 'Tasks archived' : 'Tasks restored', description: `${selectedIds.length} task${selectedIds.length === 1 ? '' : 's'} ${isArchiving ? 'archived' : 'restored'}` });
     setSelectedIds([]);
   };
 
@@ -157,14 +175,33 @@ export function BoardPage() {
     setSelectedIds([]);
   };
 
-  const bulkAssign = async (assigneeId: 'me' | 'friend' | 'both' | 'unassigned') => {
+  const bulkAssign = async (assigneeId: string) => {
     await Promise.all(selectedIds.map((taskId) => patchTask.mutateAsync({ taskId, patch: { assigneeIds: assigneeId === 'unassigned' ? [] : [assigneeId] } })));
     pushToast({ title: 'Assignee updated', description: `${selectedIds.length} task${selectedIds.length === 1 ? '' : 's'} changed` });
     setSelectedIds([]);
   };
 
   const restoreTask = async (task: Task) => {
-    await updateTask.mutateAsync({ ...task, archived: false });
+    // Note: If task is permanently deleted from Supabase, recreating it requires createTask (with new ID) 
+    // or changing it to soft delete. For now, since delete actually deletes from DB,
+    // this undo might fail unless we recreate it:
+    await createTask.mutateAsync({
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      section: task.section,
+      assigneeIds: task.assigneeIds,
+      priority: task.priority,
+      labelIds: task.labelIds,
+      estimatedHours: task.estimatedHours,
+      dueDate: task.dueDate,
+      completedAt: task.completedAt,
+      notes: task.notes,
+      subtasks: task.subtasks,
+      attachments: task.attachments,
+      order: task.order,
+      archived: task.archived,
+    });
     pushToast({ title: 'Task restored', description: task.title });
   };
 
@@ -172,12 +209,15 @@ export function BoardPage() {
     return <div className="space-y-4 p-4 lg:p-6"><Skeleton className="h-28" /><Skeleton className="h-[40rem]" /></div>;
   }
 
+  const selectedTasks = tasks.filter(t => selectedIds.includes(t.id));
+  const allArchived = selectedTasks.length > 0 && selectedTasks.every(t => t.archived);
+
   return (
-    <div className="flex h-full flex-col gap-4 p-4 lg:p-6">
-      <Card className="p-4">
+    <div className="flex h-full flex-col gap-4 p-4 lg:p-6" onClick={() => setSelectedIds([])}>
+      <Card className="p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">{sectionTabs.find((item) => item.id === section)?.label} board</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">{section} board</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">Collaborative task board</h2>
             <p className="mt-1 text-sm text-muted-foreground">Search, filter, drag, and manage work with instant persistence.</p>
           </div>
@@ -201,8 +241,8 @@ export function BoardPage() {
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </Select>
-          <Select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value as typeof assigneeFilter)}>
-            {userFilterOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+          <Select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+            {memberFilterOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
           </Select>
           <Select value={labelFilter} onChange={(event) => setLabelFilter(event.target.value)}>
             <option value="all">All labels</option>
@@ -217,26 +257,38 @@ export function BoardPage() {
       </Card>
 
       <div className="flex-1 min-h-0">
-        <KanbanBoard tasks={visibleTasks} labels={labels} users={users} selectedIds={selectedIds} onToggleSelect={toggleSelection} onOpen={(taskId) => setDrawerTaskId(taskId)} onMoveTask={moveTask} />
+        <KanbanBoard tasks={visibleTasks} labels={labels} users={users} selectedIds={selectedIds} onToggleSelect={toggleSelection} onOpen={(taskId) => setViewTaskId(taskId)} onMoveTask={moveTask} />
       </div>
 
       {selectedIds.length ? (
-        <Card className="fixed bottom-4 left-1/2 z-50 w-[min(95vw,56rem)] -translate-x-1/2 border-border bg-card p-3 shadow-2xl">
+        <Card className="fixed bottom-4 left-1/2 z-50 w-[min(95vw,56rem)] -translate-x-1/2 border-border bg-card p-3 shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="flex flex-wrap items-center gap-2">
             <Badge>{selectedIds.length} selected</Badge>
-            <Button variant="secondary" size="sm" onClick={bulkArchive}><Archive className="h-4 w-4" /> Archive</Button>
+            <Button variant="secondary" size="sm" onClick={bulkToggleArchive}><Archive className="h-4 w-4 mr-2" /> {allArchived ? 'Restore' : 'Archive'}</Button>
             <Select className="min-w-36" defaultValue="" onChange={(event) => event.target.value && void bulkStatus(event.target.value as TaskStatus)}>
               <option value="">Change status</option>
               {taskStatuses.map((status) => <option key={status.id} value={status.id}>{status.label}</option>)}
             </Select>
-            <Select className="min-w-36" defaultValue="" onChange={(event) => event.target.value && void bulkAssign(event.target.value as 'me' | 'friend' | 'both' | 'unassigned')}>
+            <Select className="min-w-36" defaultValue="" onChange={(event) => event.target.value && void bulkAssign(event.target.value)}>
               <option value="">Assign to</option>
-              {assigneeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              <option value="unassigned">Unassigned</option>
             </Select>
             <Button variant="destructive" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Delete</Button>
           </div>
         </Card>
       ) : null}
+
+      <TaskViewModal
+        open={viewTaskId !== null}
+        taskId={viewTaskId}
+        onClose={() => setViewTaskId(null)}
+        onEdit={(id) => {
+          setViewTaskId(null);
+          setDrawerTaskId(id);
+        }}
+        onDelete={(task) => setConfirmTask(task)}
+      />
 
       <TaskDrawer
         open={drawerTaskId !== null}

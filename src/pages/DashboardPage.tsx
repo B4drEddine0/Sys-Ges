@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import { Activity, AlertTriangle, ArrowUpRight, CalendarDays, CheckCircle2, Clock3, FlaskConical, Users } from 'lucide-react';
 import { format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { Card, Panel, Progress, Skeleton } from '@/components/ui';
-import { useActivitiesQuery, useTasksQuery, useUsersQuery } from '@/features/tasks/taskHooks';
+import { useActivitiesQuery, useTasksQuery, useProjectMembersQuery } from '@/features/tasks/taskHooks';
 import { priorities } from '@/lib/constants';
+import { useProject } from '@/providers/ProjectProvider';
 import type { Task } from '@/types';
 
 function statValue(tasks: Task[], predicate: (task: Task) => boolean) {
@@ -12,8 +13,9 @@ function statValue(tasks: Task[], predicate: (task: Task) => boolean) {
 
 export function DashboardPage() {
   const { data: tasks = [], isLoading } = useTasksQuery();
-  const { data: users = [] } = useUsersQuery();
+  const { data: users = [] } = useProjectMembersQuery();
   const { data: activities = [] } = useActivitiesQuery();
+  const { activeProject } = useProject();
 
   const stats = useMemo(() => {
     const total = tasks.filter((task) => !task.archived).length;
@@ -39,7 +41,10 @@ export function DashboardPage() {
     };
   }, [tasks]);
 
-  const tasksPerUser = useMemo(() => users.map((user) => ({ user, count: tasks.filter((task) => task.assigneeIds.includes(user.id) || task.assigneeIds.includes('both')).length })), [tasks, users]);
+  const tasksPerUser = useMemo(() => users.map((user) => ({
+    user,
+    count: tasks.filter((task) => task.assigneeIds.includes(user.id)).length,
+  })), [tasks, users]);
 
   if (isLoading) {
     return <div className="grid gap-4 p-4 lg:p-6"><Skeleton className="h-32" /><Skeleton className="h-96" /></div>;
@@ -49,6 +54,13 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
+      {activeProject && (
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">{activeProject.name}</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Project Dashboard</h2>
+        </div>
+      )}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Overall progress', value: `${stats.completion}%`, icon: CheckCircle2, meta: `${stats.done} done` },
@@ -92,9 +104,9 @@ export function DashboardPage() {
         </Card>
 
         <div className="space-y-4">
-          <Panel title="Tasks per user" action={<Users className="h-4 w-4 text-muted-foreground" />}>
+          <Panel title="Tasks per member" action={<Users className="h-4 w-4 text-muted-foreground" />}>
             <div className="space-y-3">
-              {tasksPerUser.map(({ user, count }) => (
+              {tasksPerUser.length > 0 ? tasksPerUser.map(({ user, count }) => (
                 <div key={user.id}>
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span>{user.name}</span>
@@ -102,19 +114,23 @@ export function DashboardPage() {
                   </div>
                   <Progress value={stats.total ? (count / stats.total) * 100 : 0} />
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-muted-foreground">No members yet.</p>
+              )}
             </div>
           </Panel>
 
           <Panel title="Recent activity" action={<Activity className="h-4 w-4 text-muted-foreground" />}>
             <div className="space-y-3">
-              {activities.slice(0, 5).map((activity) => (
+              {activities.length > 0 ? activities.slice(0, 5).map((activity) => (
                 <div key={activity.id} className="rounded-xl border border-border p-3 text-sm">
                   <p className="font-medium">{activity.title}</p>
                   <p className="mt-1 text-muted-foreground">{activity.description}</p>
                   <p className="mt-2 text-xs text-muted-foreground">{format(parseISO(activity.createdAt), 'MMM d, p')}</p>
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-muted-foreground">No activity yet.</p>
+              )}
             </div>
           </Panel>
         </div>
@@ -140,7 +156,7 @@ export function DashboardPage() {
 
         <Panel title="Upcoming deadlines" action={<Clock3 className="h-4 w-4 text-muted-foreground" />}>
           <div className="space-y-3">
-            {stats.upcoming.map((task) => {
+            {stats.upcoming.length > 0 ? stats.upcoming.map((task) => {
               const overdue = task.dueDate ? isAfter(startOfDay(new Date()), startOfDay(parseISO(task.dueDate))) : false;
               return (
                 <div key={task.id} className="rounded-xl border border-border p-3 text-sm">
@@ -151,7 +167,9 @@ export function DashboardPage() {
                   <p className="mt-1 text-muted-foreground">{task.section === 'frontend' ? 'Frontend' : 'Backend'} • {task.status.replaceAll('_', ' ')}</p>
                 </div>
               );
-            })}
+            }) : (
+              <p className="text-sm text-muted-foreground">No upcoming deadlines.</p>
+            )}
           </div>
         </Panel>
       </section>

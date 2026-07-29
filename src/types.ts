@@ -1,14 +1,15 @@
-export type SectionId = 'frontend' | 'backend';
+export type SectionId = string;
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'testing' | 'done';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
-export type AssigneeId = 'me' | 'friend' | 'both' | 'unassigned';
-export type ImportedPriority = 'P0' | 'P1' | 'P2';
 
 export interface User {
   id: string;
   name: string;
   avatar: string;
   color: string;
+  email?: string;
+  role?: string;
+  avatarUrl?: string | null;
 }
 
 export interface Section {
@@ -68,25 +69,4 @@ export interface Activity {
   description: string;
   createdAt: string;
   meta?: Record<string, unknown>;
-}
-
-export interface SeedDatabase {
-  users: User[];
-  sections: Section[];
-  labels: Label[];
-  tasks: Task[];
-  activities: Activity[];
-}
-
-export interface MarkdownImportTask {
-  code: string;
-  title: string;
-  description: string;
-  doneWhen: string;
-  priority: ImportedPriority;
-  lane: 'Shared' | 'Frontend' | 'Backend';
-  section: SectionId;
-  order: number;
-  subtasks: Subtask[];
-  labels: string[];
 }

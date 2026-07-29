@@ -25,3 +25,6 @@ pnpm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+
+scripts/run-migration.cjs

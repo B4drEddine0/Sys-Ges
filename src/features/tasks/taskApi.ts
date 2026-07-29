@@ -1,5 +1,10 @@
 import { supabase } from '@/lib/supabase';
-import type { Activity, Attachment, Label, Section, Subtask, Task, User } from '@/types';
+import type { Activity, Attachment, Label, Section, Subtask, Task } from '@/types';
+import type { Profile } from '@/types/project';
+
+// ============================================================
+// Row types (match Supabase table columns)
+// ============================================================
 
 type TaskRow = {
   id: string;
@@ -20,6 +25,7 @@ type TaskRow = {
   attachments: Attachment[] | null;
   order_index: number;
   archived: boolean;
+  project_id: string | null;
 };
 
 type LabelRow = {
@@ -27,6 +33,7 @@ type LabelRow = {
   name: string;
   color: string;
   created_at: string;
+  project_id: string | null;
 };
 
 type SectionRow = {
@@ -34,6 +41,7 @@ type SectionRow = {
   name: string;
   color: string;
   order_index: number;
+  project_id: string | null;
 };
 
 type ActivityRow = {
@@ -45,9 +53,14 @@ type ActivityRow = {
   description: string;
   created_at: string;
   meta?: Record<string, unknown> | null;
+  project_id: string | null;
 };
 
 type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
+
+// ============================================================
+// Utilities
+// ============================================================
 
 function assertNoError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
@@ -76,7 +89,31 @@ function fromTaskRow(row: TaskRow): Task {
   };
 }
 
-function toTaskRow(task: Task | (TaskInput & { id: string; createdAt: string; updatedAt: string })): TaskRow {
+function toTaskInsertRow(task: TaskInput & { id: string; createdAt: string; updatedAt: string }, projectId: string): Omit<TaskRow, 'project_id'> & { project_id: string } {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    section_id: task.section,
+    assignee_ids: task.assigneeIds,
+    priority: task.priority,
+    label_ids: task.labelIds,
+    estimated_hours: task.estimatedHours,
+    due_date: task.dueDate,
+    created_at: task.createdAt,
+    updated_at: task.updatedAt,
+    completed_at: task.completedAt,
+    notes: task.notes,
+    subtasks: task.subtasks,
+    attachments: task.attachments,
+    order_index: task.order,
+    archived: task.archived,
+    project_id: projectId,
+  };
+}
+
+function toTaskUpdateRow(task: Task): Omit<TaskRow, 'project_id'> {
   return {
     id: task.id,
     title: task.title,
@@ -141,55 +178,119 @@ function fromActivityRow(row: ActivityRow): Activity {
   };
 }
 
+// ============================================================
+// API (all queries now scoped to project_id)
+// ============================================================
+
 export const taskApi = {
-  listTasks: async () => {
-    const { data, error } = await supabase.from('tasks').select('*').order('order_index', { ascending: true });
+  // Tasks
+  listTasks: async (projectId: string) => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('order_index', { ascending: true });
     assertNoError(error);
     return ((data ?? []) as TaskRow[]).map(fromTaskRow);
   },
-  listUsers: async () => {
-    const { data, error } = await supabase.from('users').select('*').order('id', { ascending: true });
-    assertNoError(error);
-    return (data ?? []) as User[];
-  },
-  listSections: async () => {
-    const { data, error } = await supabase.from('sections').select('*').order('order_index', { ascending: true });
+
+  // Sections
+  listSections: async (projectId: string) => {
+    const { data, error } = await supabase
+      .from('sections')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('order_index', { ascending: true });
     assertNoError(error);
     return ((data ?? []) as SectionRow[]).map(fromSectionRow);
   },
-  listLabels: async () => {
-    const { data, error } = await supabase.from('labels').select('*').order('name', { ascending: true });
+
+  // Labels
+  listLabels: async (projectId: string) => {
+    const { data, error } = await supabase
+      .from('labels')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('name', { ascending: true });
     assertNoError(error);
     return ((data ?? []) as LabelRow[]).map(fromLabelRow);
   },
-  listActivities: async () => {
-    const { data, error } = await supabase.from('activities').select('*').order('created_at', { ascending: false });
+
+  // Activities
+  listActivities: async (projectId: string) => {
+    const { data, error } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
     assertNoError(error);
     return ((data ?? []) as ActivityRow[]).map(fromActivityRow);
   },
-  createTask: async (task: TaskInput) => {
+
+  // Project members (as "users" for display)
+  listProjectMembers: async (projectId: string) => {
+    const { data, error } = await supabase
+      .from('project_members')
+      .select('*, profiles(*)')
+      .eq('project_id', projectId);
+    assertNoError(error);
+    return (data ?? []).map((row: { profiles: Profile; user_id: string; role: string }) => ({
+      id: row.user_id,
+      name: row.profiles?.display_name ?? 'Unknown',
+      avatar: (row.profiles?.display_name ?? 'U').slice(0, 2).toUpperCase(),
+      color: '#2563eb',
+      email: row.profiles?.email ?? '',
+      role: row.role,
+      avatarUrl: row.profiles?.avatar_url ?? null,
+    }));
+  },
+
+  // Create task
+  createTask: async (task: TaskInput, projectId: string) => {
     const now = new Date().toISOString();
     const nextTask = { ...task, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
-    const { data, error } = await supabase.from('tasks').insert(toTaskRow(nextTask)).select('*').single();
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert(toTaskInsertRow(nextTask, projectId))
+      .select('*')
+      .single();
     assertNoError(error);
     return fromTaskRow(data as TaskRow);
   },
+
+  // Update task
   updateTask: async (task: Task) => {
     const nextTask = { ...task, updatedAt: new Date().toISOString() };
-    const { data, error } = await supabase.from('tasks').update(toTaskRow(nextTask)).eq('id', task.id).select('*').single();
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(toTaskUpdateRow(nextTask))
+      .eq('id', task.id)
+      .select('*')
+      .single();
     assertNoError(error);
     return fromTaskRow(data as TaskRow);
   },
+
+  // Patch task
   patchTask: async (taskId: string, patch: Partial<Task>) => {
-    const { data, error } = await supabase.from('tasks').update(toTaskPatchRow(patch)).eq('id', taskId).select('*').single();
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(toTaskPatchRow(patch))
+      .eq('id', taskId)
+      .select('*')
+      .single();
     assertNoError(error);
     return fromTaskRow(data as TaskRow);
   },
+
+  // Delete task
   deleteTask: async (taskId: string) => {
     const { error } = await supabase.from('tasks').delete().eq('id', taskId);
     assertNoError(error);
   },
-  createActivity: async (activity: Omit<Activity, 'id' | 'createdAt'>) => {
+
+  // Create activity
+  createActivity: async (activity: Omit<Activity, 'id' | 'createdAt'>, projectId: string) => {
     const { data, error } = await supabase
       .from('activities')
       .insert({
@@ -201,6 +302,7 @@ export const taskApi = {
         description: activity.description,
         meta: activity.meta ?? null,
         created_at: new Date().toISOString(),
+        project_id: projectId,
       })
       .select('*')
       .single();
