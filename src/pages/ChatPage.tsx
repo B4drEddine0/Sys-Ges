@@ -201,30 +201,31 @@ export function ChatPage() {
                 <p className="text-sm">Be the first to say hello!</p>
               </div>
             )}
-            <div ref={messagesEndRef} />
-          </div>
+              <div ref={messagesEndRef} />
+            </div>
 
-          {/* Message Input */}
-          <div className="p-4 bg-background border-t border-border">
-            <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative flex items-end gap-2">
-              <Input
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                placeholder={`Message #${activeChat.name}...`}
-                className="pr-12 py-6 rounded-2xl shadow-sm text-[15px] bg-muted/20 focus-visible:bg-background transition-colors"
-              />
-              <Button 
-                type="submit" 
-                size="sm" 
-                className="absolute right-2 bottom-1.5 h-9 w-9 rounded-xl p-0 flex items-center justify-center"
-                disabled={!message.trim() || sendMessage.isPending}
-              >
-                <Send className="h-4 w-4 ml-0.5" />
-              </Button>
-            </form>
+            {/* Message Input */}
+            <div className="p-4 bg-background border-t border-border">
+              {/* Typing indicator could go here */}
+              <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative flex items-end gap-2">
+                <Input
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  placeholder={`Message #${activeChat.name}...`}
+                  className="pr-12 py-6 rounded-2xl shadow-sm text-[15px] bg-muted/20 focus-visible:bg-background transition-colors"
+                />
+                <Button 
+                  type="submit" 
+                  size="sm" 
+                  className="absolute right-2 bottom-1.5 h-9 w-9 rounded-xl p-0 flex items-center justify-center"
+                  disabled={!message.trim() || sendMessage.isPending}
+                >
+                  <Send className="h-4 w-4 ml-0.5" />
+                </Button>
+              </form>
+            </div>
           </div>
-        </div>
-      ) : (
+        ) : (
         <div className="flex-1 flex flex-col items-center justify-center bg-muted/5 text-muted-foreground">
           <Users className="h-16 w-16 mb-4 opacity-20" />
           <h2 className="text-xl font-semibold text-foreground mb-2">Team Chat</h2>

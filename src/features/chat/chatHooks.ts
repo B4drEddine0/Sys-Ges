@@ -20,6 +20,7 @@ export function useChatMessagesQuery(chatId: string | null) {
     queryKey: chatKeys.messages(chatId!),
     queryFn: () => chatApi.getMessages(chatId!),
     enabled: !!chatId,
+    refetchInterval: 3000, // Robust fallback if WebSockets disconnect
   });
 }
 
@@ -62,9 +63,9 @@ export function useChatRealtime(chatId: string | null) {
       .channel(`chat-${chatId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
+        { event: '*', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: chatKeys.messages(chatId) });
+          void queryClient.invalidateQueries({ queryKey: chatKeys.messages(chatId) });
         }
       )
       .subscribe();
