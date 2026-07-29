@@ -34,23 +34,14 @@ export const chatApi = {
   },
 
   async createChat(name: string): Promise<Chat> {
-    const { data, error } = await supabase
-      .from('chats')
-      .insert({ name })
-      .select()
-      .single();
+    const { data: chat, error } = await supabase.rpc('create_group_chat', {
+      p_name: name
+    });
+    
     assertNoError(error);
+    if (!chat) throw new Error('Failed to create chat');
     
-    // Automatically join the chat you created
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
-      await supabase.from('chat_members').insert({
-        chat_id: data.id,
-        user_id: userData.user.id
-      });
-    }
-    
-    return data;
+    return chat;
   },
 
   async joinChat(joinCode: string): Promise<Chat> {
