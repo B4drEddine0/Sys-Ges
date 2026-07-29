@@ -41,6 +41,7 @@ export function RegisterPage() {
           data: {
             display_name: data.displayName,
           },
+          emailRedirectTo: window.location.origin,
         },
       });
 
