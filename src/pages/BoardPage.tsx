@@ -5,6 +5,7 @@ import { Badge, Button, Card, Modal, Select, Skeleton } from '@/components/ui';
 import { KanbanBoard } from '@/components/Kanban';
 import { TaskDrawer } from '@/features/tasks/TaskDrawer';
 import { TaskViewModal } from '@/features/tasks/TaskViewModal';
+import { ImportTasksModal } from '@/features/tasks/ImportTasksModal';
 import { useLabelsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery, useSectionsQuery } from '@/features/tasks/taskHooks';
 import { useShell } from '@/providers/ShellProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -35,6 +36,7 @@ export function BoardPage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [confirmTask, setConfirmTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all');
@@ -225,6 +227,7 @@ export function BoardPage() {
             <p className="mt-1 text-sm text-muted-foreground">Search, filter, drag, and manage work with instant persistence.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>Import CSV</Button>
             <Button variant="secondary" onClick={() => setDrawerTaskId('new')}><Plus className="h-4 w-4" /> New task</Button>
             <Select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="min-w-40">
               {sortOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
@@ -317,6 +320,10 @@ export function BoardPage() {
           }}>Delete</Button>
         </div>
       </Modal>
+
+      {isImportModalOpen && (
+        <ImportTasksModal open={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
+      )}
     </div>
   );
 }
