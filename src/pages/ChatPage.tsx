@@ -225,7 +225,15 @@ export function ChatPage() {
                             )}
                           </div>
                         )}
-                        {msg.content}
+                        {msg.content.split(/(@\w+)/g).map((part, i) => 
+                          part.startsWith('@') ? (
+                            <span key={i} className="font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1 rounded">
+                              {part}
+                            </span>
+                          ) : (
+                            <span key={i}>{part}</span>
+                          )
+                        )}
                       </div>
                     </div>
                   </div>

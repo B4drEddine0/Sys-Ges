@@ -18,6 +18,7 @@ function queryKeys(projectId: string | null) {
     labels: ['labels', projectId] as const,
     activities: ['activities', projectId] as const,
     comments: (taskId: string) => ['comments', taskId] as const,
+    notifications: ['notifications'] as const,
   };
 }
 
@@ -80,6 +81,13 @@ export function useTaskCommentsQuery(taskId: string | null) {
     queryKey: queryKeys(null).comments(taskId!),
     queryFn: () => taskApi.listTaskComments(taskId!),
     enabled: !!taskId,
+  });
+}
+
+export function useNotificationsQuery() {
+  return useQuery({
+    queryKey: queryKeys(null).notifications,
+    queryFn: () => taskApi.listNotifications(),
   });
 }
 
@@ -197,7 +205,14 @@ export function useTaskMutations() {
     },
   });
 
-  return { createTask, updateTask, patchTask, deleteTask, createComment, deleteComment };
+  const markNotificationRead = useMutation({
+    mutationFn: (id: string) => taskApi.markNotificationRead(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys(null).notifications });
+    },
+  });
+
+  return { createTask, updateTask, patchTask, deleteTask, createComment, deleteComment, markNotificationRead };
 }
 
 // ============================================================

@@ -113,6 +113,40 @@ export const chatApi = {
         file_type: fileType
       });
     assertNoError(error);
+
+    // Process Mentions
+    const mentionRegex = /@(\w+)/g;
+    const matches = Array.from(content.matchAll(mentionRegex)).map(m => m[1].toLowerCase());
+    
+    if (matches.length > 0) {
+      // Find chat members to see who got mentioned
+      const { data: members } = await supabase
+        .from('chat_members')
+        .select('user_id, profiles!inner(display_name)')
+        .eq('chat_id', chatId);
+
+      if (members) {
+        const notificationsToInsert = [];
+        for (const member of members as any[]) {
+          // Compare against displayName without spaces (e.g. "John Doe" -> "johndoe")
+          const cleanName = (member.profiles.display_name || '').replace(/\s+/g, '').toLowerCase();
+          
+          if (matches.includes(cleanName) && member.user_id !== userData.user.id) {
+            notificationsToInsert.push({
+              user_id: member.user_id,
+              actor_id: userData.user.id,
+              type: 'mention',
+              content: content.substring(0, 100), // snippet
+              link: `/chat`, // link to chat
+            });
+          }
+        }
+        
+        if (notificationsToInsert.length > 0) {
+          await supabase.from('notifications').insert(notificationsToInsert);
+        }
+      }
+    }
   },
 
   async deleteMessage(messageId: string, filePath?: string | null): Promise<void> {

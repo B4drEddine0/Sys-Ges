@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare, ShieldAlert } from 'lucide-react';
 import { Button, Input, Avatar } from './ui';
+import { NotificationsPopover } from './NotificationsPopover';
 import { useShell } from '@/providers/ShellProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useAuth } from '@/providers/AuthProvider';
@@ -142,6 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Button variant="secondary" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="shrink-0">
               {theme === 'dark' ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </Button>
+            <NotificationsPopover />
             <button onClick={() => navigate('/profile')} className="flex items-center justify-center lg:hidden">
               <Avatar name={initials} color="#2563eb" src={profile?.avatar_url} className="h-9 w-9" />
             </button>

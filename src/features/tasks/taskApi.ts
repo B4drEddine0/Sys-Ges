@@ -6,6 +6,21 @@ import type { Profile } from '@/types/project';
 // Row types (match Supabase table columns)
 // ============================================================
 
+export type Notification = {
+  id: string;
+  userId: string;
+  actorId: string | null;
+  type: 'mention' | 'task_assigned' | 'system';
+  content: string;
+  link: string | null;
+  isRead: boolean;
+  createdAt: string;
+  actor?: {
+    display_name: string;
+    avatar_url: string | null;
+  };
+};
+
 type TaskRow = {
   id: string;
   title: string;
@@ -320,6 +335,55 @@ export const taskApi = {
   async deleteActivity(id: string): Promise<void> {
     const { error } = await supabase.from('activities').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  // ============================================================
+  // Notifications
+  // ============================================================
+
+  async listNotifications(): Promise<Notification[]> {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, user_id, actor_id, type, content, link, is_read, created_at, actor:profiles!actor_id(display_name, avatar_url)')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return (data as any[]).map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      actorId: row.actor_id,
+      type: row.type,
+      content: row.content,
+      link: row.link,
+      isRead: row.is_read,
+      createdAt: row.created_at,
+      actor: row.actor,
+    }));
+  },
+
+  async markNotificationRead(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  async createNotification(payload: { userId: string; type: string; content: string; link?: string }): Promise<void> {
+    const session = await supabase.auth.getSession();
+    const actorId = session.data.session?.user?.id;
+    if (!actorId) return;
+
+    const { error } = await supabase.from('notifications').insert({
+      user_id: payload.userId,
+      actor_id: actorId,
+      type: payload.type,
+      content: payload.content,
+      link: payload.link || null,
+    });
+    
+    if (error) console.error('Failed to create notification', error);
   },
 
   // ============================================================
