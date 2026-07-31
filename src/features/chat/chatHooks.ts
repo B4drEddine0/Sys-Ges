@@ -81,10 +81,10 @@ export function useChatRealtime(activeChatId: string | null) {
         { event: '*', schema: 'public', table: 'chat_messages' },
         (payload) => {
           // If the message belongs to the currently active chat, invalidate those messages
-          if (payload.new && 'chat_id' in payload.new && payload.new.chat_id === activeChatId) {
+          if (activeChatId && payload.new && 'chat_id' in payload.new && payload.new.chat_id === activeChatId) {
             void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeChatId) });
           }
-          if (payload.old && 'chat_id' in payload.old && payload.old.chat_id === activeChatId) {
+          if (activeChatId && payload.old && 'chat_id' in payload.old && payload.old.chat_id === activeChatId) {
             void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeChatId) });
           }
           
