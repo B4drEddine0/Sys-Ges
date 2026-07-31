@@ -12,9 +12,9 @@ export function ChatPage() {
   const { profile } = useAuth();
   const { pushToast } = useToast();
   const { data: chats = [], isLoading: isLoadingChats } = useChatsQuery();
-  const { createChat, joinChat, sendMessage, deleteMessage, addReaction, removeReaction } = useChatMutations();
   
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const { createChat, joinChat, sendMessage, deleteMessage, addReaction, removeReaction } = useChatMutations(activeChatId || undefined, profile);
   const [newChatName, setNewChatName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [message, setMessage] = useState('');
@@ -255,50 +255,19 @@ export function ChatPage() {
                       </div>
                     )}
                     
-                    <div className="flex items-center gap-2">
-                      <div className={`flex flex-col-reverse gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'items-end' : 'items-start'}`}>
-                        {isMe && (
-                          <button 
-                            onClick={() => deleteMessage.mutate({ messageId: msg.id, filePath: msg.file_path })}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors"
-                            title="Delete Message"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => setReplyingTo(msg)}
-                          className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
-                          title="Reply"
-                        >
-                          <Reply className="h-4 w-4" />
-                        </button>
-                        <div className="relative group/react">
-                          <button className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors" title="React">
-                            <SmilePlus className="h-4 w-4" />
-                          </button>
-                          <div className="absolute top-full mt-1 bg-card border border-border shadow-md rounded-full px-2 py-1 hidden group-hover/react:flex items-center gap-1 z-10 w-max -translate-x-1/2 left-1/2">
-                            {['👍', '❤️', '😂', '😮', '😢'].map(emoji => (
-                              <button
-                                key={emoji}
-                                onClick={() => addReaction.mutate({ messageId: msg.id, emoji })}
-                                className="text-lg hover:scale-125 transition-transform"
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
+                    <div className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                       <div className="flex flex-col relative max-w-full">
-                        {msg.reply_to && (
-                          <div className={`text-xs opacity-70 mb-1 flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <Reply className="h-3 w-3" />
-                            <span className="font-semibold">{msg.reply_to.profile.display_name}</span>
-                            <span className="truncate max-w-[150px]">"{msg.reply_to.content}"</span>
-                          </div>
-                        )}
+                        {msg.reply_to_id && (() => {
+                          const parentMsg = messages.find(m => m.id === msg.reply_to_id);
+                          if (!parentMsg) return null;
+                          return (
+                            <div className={`text-xs opacity-70 mb-1 flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                              <Reply className="h-3 w-3" />
+                              <span className="font-semibold">{parentMsg.profile?.display_name || 'Someone'}</span>
+                              <span className="truncate max-w-[150px]">"{parentMsg.content}"</span>
+                            </div>
+                          );
+                        })()}
                         <div className={`px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
                           isMe 
                             ? 'bg-primary text-primary-foreground rounded-tr-sm' 
@@ -356,6 +325,43 @@ export function ChatPage() {
                             );
                           })}
                         </div>
+                      )}
+                    </div>
+                    
+                    <div className={`flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className="relative group/react">
+                        <button className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors" title="React">
+                          <SmilePlus className="h-4 w-4" />
+                        </button>
+                        <div className="absolute top-full pt-1.5 hidden group-hover/react:block z-10 w-max -translate-x-1/2 left-1/2">
+                          <div className="bg-card border border-border shadow-md rounded-full px-2 py-1 flex items-center gap-1">
+                            {['👍', '❤️', '😂', '😮', '😢'].map(emoji => (
+                              <button
+                                key={emoji}
+                                onClick={() => addReaction.mutate({ messageId: msg.id, emoji })}
+                                className="text-lg hover:scale-125 transition-transform origin-bottom"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setReplyingTo(msg)}
+                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
+                        title="Reply"
+                      >
+                        <Reply className="h-4 w-4" />
+                      </button>
+                      {isMe && (
+                        <button 
+                          onClick={() => deleteMessage.mutate({ messageId: msg.id, filePath: msg.file_path })}
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors"
+                          title="Delete Message"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       )}
                     </div>
                   </div>

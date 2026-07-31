@@ -80,8 +80,7 @@ export const chatApi = {
       .from('chat_messages')
       .select(`
         *, 
-        profile:profiles(*),
-        reply_to:chat_messages!reply_to_id(content, profile:profiles(display_name)),
+        profile:profiles!chat_messages_user_id_fkey(*),
         reactions:chat_reactions(emoji, user_id, profile:profiles(display_name))
       `)
       .eq('chat_id', chatId)

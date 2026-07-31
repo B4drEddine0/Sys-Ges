@@ -32,7 +32,7 @@ export function useChatMembersQuery(chatId: string | null) {
   });
 }
 
-export function useChatMutations() {
+export function useChatMutations(activeChatId?: string, profile?: any) {
   const queryClient = useQueryClient();
 
   const createChat = useMutation({
@@ -61,16 +61,51 @@ export function useChatMutations() {
   const addReaction = useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       chatApi.addReaction(messageId, emoji),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chatKeys.all }); // or messages
+    onMutate: async ({ messageId, emoji }) => {
+      if (!activeChatId || !profile) return;
+      await queryClient.cancelQueries({ queryKey: chatKeys.messages(activeChatId) });
+      const previousMessages = queryClient.getQueryData(chatKeys.messages(activeChatId));
+      queryClient.setQueryData(chatKeys.messages(activeChatId), (old: any) => {
+        if (!old) return old;
+        return old.map((msg: any) => {
+          if (msg.id === messageId) {
+            const newReaction = { emoji, user_id: profile.id, profile: { display_name: profile.display_name } };
+            return { ...msg, reactions: [...(msg.reactions || []), newReaction] };
+          }
+          return msg;
+        });
+      });
+      return { previousMessages };
+    },
+    onError: (err, vars, context: any) => {
+      if (activeChatId && context?.previousMessages) {
+        queryClient.setQueryData(chatKeys.messages(activeChatId), context.previousMessages);
+      }
     }
   });
 
   const removeReaction = useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       chatApi.removeReaction(messageId, emoji),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chatKeys.all }); // or messages
+    onMutate: async ({ messageId, emoji }) => {
+      if (!activeChatId || !profile) return;
+      await queryClient.cancelQueries({ queryKey: chatKeys.messages(activeChatId) });
+      const previousMessages = queryClient.getQueryData(chatKeys.messages(activeChatId));
+      queryClient.setQueryData(chatKeys.messages(activeChatId), (old: any) => {
+        if (!old) return old;
+        return old.map((msg: any) => {
+          if (msg.id === messageId) {
+            return { ...msg, reactions: msg.reactions?.filter((r: any) => !(r.emoji === emoji && r.user_id === profile.id)) };
+          }
+          return msg;
+        });
+      });
+      return { previousMessages };
+    },
+    onError: (err, vars, context: any) => {
+      if (activeChatId && context?.previousMessages) {
+        queryClient.setQueryData(chatKeys.messages(activeChatId), context.previousMessages);
+      }
     }
   });
 
