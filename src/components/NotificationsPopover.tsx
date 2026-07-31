@@ -58,6 +58,7 @@ export function NotificationsPopover() {
                     >
                       <Avatar 
                         name={notif.actor?.display_name?.slice(0, 2).toUpperCase() || 'S'} 
+                        color="#2563eb"
                         src={notif.actor?.avatar_url}
                         className="h-9 w-9 shrink-0"
                       />
