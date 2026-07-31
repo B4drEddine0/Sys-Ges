@@ -325,7 +325,7 @@ export function ChatPage() {
                           onClick={() => handleMentionSelect(member.display_name || '')}
                           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted text-left"
                         >
-                          <Avatar name={member.display_name?.slice(0, 2).toUpperCase() || 'U'} src={member.avatar_url} className="h-6 w-6" />
+                          <Avatar name={member.display_name?.slice(0, 2).toUpperCase() || 'U'} color="#2563eb" src={member.avatar_url} className="h-6 w-6" />
                           <span className="text-sm font-medium">{member.display_name}</span>
                         </button>
                       ))}
