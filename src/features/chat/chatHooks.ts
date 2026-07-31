@@ -42,15 +42,24 @@ export function useChatMutations() {
   });
 
   const sendMessage = useMutation({
-    mutationFn: ({ chatId, content }: { chatId: string; content: string }) => 
-      chatApi.sendMessage(chatId, content),
+    mutationFn: ({ chatId, content, file }: { chatId: string; content: string; file?: File }) => 
+      chatApi.sendMessage(chatId, content, file),
     onSuccess: (_, { chatId }) => {
       // Invalidate specific chat's messages if you want, but realtime should handle it
       queryClient.invalidateQueries({ queryKey: chatKeys.messages(chatId) });
     },
   });
 
-  return { createChat, joinChat, sendMessage };
+  const deleteMessage = useMutation({
+    mutationFn: ({ messageId, filePath }: { messageId: string; filePath?: string | null }) =>
+      chatApi.deleteMessage(messageId, filePath),
+    onSuccess: () => {
+      // Realtime or polling will clean this up, but we can invalidate all chats to be safe
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+    }
+  });
+
+  return { createChat, joinChat, sendMessage, deleteMessage };
 }
 
 export function useChatRealtime(chatId: string | null) {

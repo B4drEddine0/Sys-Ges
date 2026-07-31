@@ -3,19 +3,21 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { useChatsQuery, useChatMessagesQuery, useChatMutations, useChatRealtime } from '@/features/chat/chatHooks';
 import { Button, Input, Avatar, Card } from '@/components/ui';
-import { MessageSquare, Plus, Users, Hash, Send, Copy, LogOut } from 'lucide-react';
+import { chatApi } from '@/features/chat/chatApi';
+import { MessageSquare, Plus, Users, Hash, Send, Copy, LogOut, Paperclip, Trash2, X, File as FileIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function ChatPage() {
   const { profile } = useAuth();
   const { pushToast } = useToast();
   const { data: chats = [], isLoading: isLoadingChats } = useChatsQuery();
-  const { createChat, joinChat, sendMessage } = useChatMutations();
+  const { createChat, joinChat, sendMessage, deleteMessage } = useChatMutations();
   
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [newChatName, setNewChatName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [message, setMessage] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   
   const activeChat = chats.find(c => c.id === activeChatId);
   
@@ -65,10 +67,11 @@ export function ChatPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !activeChatId) return;
+    if ((!message.trim() && !file) || !activeChatId) return;
     try {
-      await sendMessage.mutateAsync({ chatId: activeChatId, content: message.trim() });
+      await sendMessage.mutateAsync({ chatId: activeChatId, content: message.trim(), file: file || undefined });
       setMessage('');
+      setFile(null);
     } catch (err: any) {
       pushToast({ title: 'Failed to send', description: err.message, variant: 'destructive' });
     }
@@ -176,19 +179,54 @@ export function ChatPage() {
                     <div className="h-10 w-10 flex-shrink-0" /> // Spacer for consecutive messages
                   )}
                   
-                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%] group`}>
                     {!isConsecutive && (
                       <div className="flex items-baseline gap-2 mb-1">
                         <span className="text-sm font-semibold">{isMe ? 'You' : msg.profile?.display_name}</span>
                         <span className="text-xs text-muted-foreground">{format(new Date(msg.created_at), 'p')}</span>
                       </div>
                     )}
-                    <div className={`px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
-                      isMe 
-                        ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-                        : 'bg-card border border-border text-card-foreground rounded-tl-sm'
-                    }`}>
-                      {msg.content}
+                    
+                    <div className="flex items-center gap-2">
+                      {isMe && (
+                        <button 
+                          onClick={() => deleteMessage.mutate({ messageId: msg.id, filePath: msg.file_path })}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-all"
+                          title="Delete Message"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      
+                      <div className={`px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
+                        isMe 
+                          ? 'bg-primary text-primary-foreground rounded-tr-sm' 
+                          : 'bg-card border border-border text-card-foreground rounded-tl-sm'
+                      }`}>
+                        {msg.file_path && (
+                          <div className="mb-2">
+                            {msg.file_type?.startsWith('image/') ? (
+                              <a href={chatApi.getAttachmentUrl(msg.file_path)} target="_blank" rel="noreferrer">
+                                <img src={chatApi.getAttachmentUrl(msg.file_path)} alt={msg.file_name || 'attachment'} className="max-w-[240px] max-h-[240px] rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity bg-black/10" />
+                              </a>
+                            ) : (
+                              <a 
+                                href={chatApi.getAttachmentUrl(msg.file_path)} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="flex items-center gap-2 p-3 bg-background/20 rounded-lg hover:bg-background/30 transition-colors"
+                              >
+                                <FileIcon className="h-6 w-6" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate max-w-[200px]">{msg.file_name}</p>
+                                  <p className="text-xs opacity-70">{msg.file_size ? Math.round(msg.file_size / 1024) + ' KB' : 'Unknown size'}</p>
+                                </div>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {msg.content}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -206,21 +244,41 @@ export function ChatPage() {
 
             {/* Message Input */}
             <div className="p-4 bg-background border-t border-border">
-              {/* Typing indicator could go here */}
+              {file && (
+                <div className="max-w-4xl mx-auto mb-2 px-2 flex items-center gap-2">
+                  <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-md text-sm border border-border">
+                    <FileIcon className="h-4 w-4 text-primary" />
+                    <span className="truncate max-w-[200px] font-medium">{file.name}</span>
+                    <button type="button" onClick={() => setFile(null)} className="text-muted-foreground hover:text-destructive ml-1">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative flex items-end gap-2">
-                <Input
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                  placeholder={`Message #${activeChat.name}...`}
-                  className="pr-12 py-6 rounded-2xl shadow-sm text-[15px] bg-muted/20 focus-visible:bg-background transition-colors"
-                />
+                <div className="relative flex-1">
+                  <Input
+                    value={message}
+                    onChange={e => setMessage(e.target.value)}
+                    placeholder={`Message #${activeChat.name}...`}
+                    className="pl-12 pr-12 py-6 rounded-2xl shadow-sm text-[15px] bg-muted/20 focus-visible:bg-background transition-colors"
+                  />
+                  <label className="absolute left-2 bottom-1.5 h-9 w-9 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted rounded-xl cursor-pointer transition-colors">
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
+                    />
+                    <Paperclip className="h-4 w-4" />
+                  </label>
+                </div>
                 <Button 
                   type="submit" 
                   size="sm" 
-                  className="absolute right-2 bottom-1.5 h-9 w-9 rounded-xl p-0 flex items-center justify-center"
-                  disabled={!message.trim() || sendMessage.isPending}
+                  className="h-12 w-12 flex-shrink-0 rounded-2xl p-0 flex items-center justify-center shadow-sm"
+                  disabled={(!message.trim() && !file) || sendMessage.isPending}
                 >
-                  <Send className="h-4 w-4 ml-0.5" />
+                  <Send className="h-5 w-5 ml-0.5" />
                 </Button>
               </form>
             </div>

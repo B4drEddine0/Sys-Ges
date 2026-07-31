@@ -11,6 +11,8 @@ import { useToast } from '@/providers/ToastProvider';
 import { format, parseISO } from 'date-fns';
 import JoditEditor from 'jodit-react';
 
+const joditConfig = { theme: 'dark' };
+
 const taskSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(3, 'Title is required'),
@@ -174,7 +176,7 @@ export function TaskDrawer({
                   <JoditEditor 
                     value={field.value} 
                     onChange={(newContent) => field.onChange(newContent)} 
-                    config={{ theme: 'dark' }} 
+                    config={joditConfig} 
                   />
                 )}
               />
@@ -328,7 +330,7 @@ export function TaskDrawer({
                 <JoditEditor 
                   value={field.value} 
                   onChange={(newContent) => field.onChange(newContent)} 
-                  config={{ theme: 'dark' }} 
+                  config={joditConfig} 
                 />
               )}
             />
