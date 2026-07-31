@@ -77,6 +77,16 @@ export const chatApi = {
     return data || [];
   },
 
+  async getChatMembers(chatId: string): Promise<{ id: string; display_name: string; avatar_url: string | null }[]> {
+    const { data, error } = await supabase
+      .from('chat_members')
+      .select('profiles(id, display_name, avatar_url)')
+      .eq('chat_id', chatId);
+    assertNoError(error);
+    // @ts-ignore
+    return (data || []).map(row => row.profiles);
+  },
+
   async sendMessage(chatId: string, content: string, file?: File): Promise<void> {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');

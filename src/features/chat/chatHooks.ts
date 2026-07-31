@@ -24,6 +24,14 @@ export function useChatMessagesQuery(chatId: string | null) {
   });
 }
 
+export function useChatMembersQuery(chatId: string | null) {
+  return useQuery({
+    queryKey: ['chat_members', chatId],
+    queryFn: () => chatApi.getChatMembers(chatId!),
+    enabled: !!chatId,
+  });
+}
+
 export function useChatMutations() {
   const queryClient = useQueryClient();
 

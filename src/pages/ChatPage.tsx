@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/ToastProvider';
-import { useChatsQuery, useChatMessagesQuery, useChatMutations, useChatRealtime } from '@/features/chat/chatHooks';
+import { useChatsQuery, useChatMessagesQuery, useChatMutations, useChatRealtime, useChatMembersQuery } from '@/features/chat/chatHooks';
 import { Button, Input, Avatar, Card } from '@/components/ui';
 import { chatApi } from '@/features/chat/chatApi';
 import { MessageSquare, Plus, Users, Hash, Send, Copy, LogOut, Paperclip, Trash2, X, File as FileIcon } from 'lucide-react';
@@ -24,8 +24,25 @@ export function ChatPage() {
   // Realtime subscription
   useChatRealtime(activeChatId);
   const { data: messages = [], isLoading: isLoadingMessages } = useChatMessagesQuery(activeChatId);
+  const { data: members = [] } = useChatMembersQuery(activeChatId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLength = useRef(0);
+
+  // Play sound on new messages
+  useEffect(() => {
+    if (messages.length > prevMessagesLength.current && prevMessagesLength.current !== 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.user_id !== profile?.id) {
+        try {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(() => {});
+        } catch (e) {}
+      }
+    }
+    prevMessagesLength.current = messages.length;
+  }, [messages, profile?.id]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -72,10 +89,44 @@ export function ChatPage() {
       await sendMessage.mutateAsync({ chatId: activeChatId, content: message.trim(), file: file || undefined });
       setMessage('');
       setFile(null);
+      setMentionPopup(false);
     } catch (err: any) {
       pushToast({ title: 'Failed to send', description: err.message, variant: 'destructive' });
     }
   };
+
+  // Mention Autocomplete logic
+  const [mentionPopup, setMentionPopup] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setMessage(val);
+    
+    // Check if cursor is right after an @ word
+    const cursor = e.target.selectionStart || 0;
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (match) {
+      setMentionPopup(true);
+      setMentionFilter(match[1].toLowerCase());
+    } else {
+      setMentionPopup(false);
+    }
+  };
+
+  const handleMentionSelect = (displayName: string) => {
+    const cleanName = displayName.replace(/\s+/g, '');
+    const textBeforeCursor = message.slice(0, message.search(/@\w*$/));
+    const textAfterCursor = message.slice(message.search(/@\w*$/) + (message.match(/@\w*$/)?.[0].length || 0));
+    
+    setMessage(`${textBeforeCursor}@${cleanName} ${textAfterCursor}`);
+    setMentionPopup(false);
+    document.getElementById('chat-input')?.focus();
+  };
+
+  const filteredMembers = members.filter(m => m.display_name?.replace(/\s+/g, '').toLowerCase().includes(mentionFilter));
 
   return (
     <div className="absolute inset-0 flex bg-background">
@@ -265,9 +316,25 @@ export function ChatPage() {
               )}
               <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative flex items-end gap-2">
                 <div className="relative flex-1">
+                  {mentionPopup && filteredMembers.length > 0 && (
+                    <div className="absolute bottom-full mb-2 left-0 bg-card border border-border shadow-lg rounded-xl overflow-hidden w-64 z-50">
+                      {filteredMembers.map(member => (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => handleMentionSelect(member.display_name || '')}
+                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted text-left"
+                        >
+                          <Avatar name={member.display_name?.slice(0, 2).toUpperCase() || 'U'} src={member.avatar_url} className="h-6 w-6" />
+                          <span className="text-sm font-medium">{member.display_name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <Input
+                    id="chat-input"
                     value={message}
-                    onChange={e => setMessage(e.target.value)}
+                    onChange={handleInputChange}
                     placeholder={`Message #${activeChat.name}...`}
                     className="pl-12 pr-12 py-6 rounded-2xl shadow-sm text-[15px] bg-muted/20 focus-visible:bg-background transition-colors"
                   />
