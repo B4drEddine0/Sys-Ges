@@ -56,6 +56,34 @@ type ActivityRow = {
   project_id: string | null;
 };
 
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  author?: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  };
+};
+
+type TaskCommentRow = {
+  id: string;
+  task_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  author?: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  };
+};
+
 type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
 
 // ============================================================
@@ -287,6 +315,67 @@ export const taskApi = {
   deleteTask: async (taskId: string) => {
     const { error } = await supabase.from('tasks').delete().eq('id', taskId);
     assertNoError(error);
+  },
+
+  async deleteActivity(id: string): Promise<void> {
+    const { error } = await supabase.from('activities').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // ============================================================
+  // Task Comments
+  // ============================================================
+
+  async listTaskComments(taskId: string): Promise<TaskComment[]> {
+    const { data, error } = await supabase
+      .from('task_comments')
+      .select('*, author:profiles(id, display_name, avatar_url)')
+      .eq('task_id', taskId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data as any[]).map((row) => ({
+      id: row.id,
+      taskId: row.task_id,
+      authorId: row.author_id,
+      content: row.content,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      author: row.author,
+    }));
+  },
+
+  async createTaskComment(taskId: string, content: string): Promise<TaskComment> {
+    const session = await supabase.auth.getSession();
+    const userId = session.data.session?.user?.id;
+    if (!userId) throw new Error('Unauthenticated');
+
+    const { data, error } = await supabase
+      .from('task_comments')
+      .insert({
+        task_id: taskId,
+        author_id: userId,
+        content,
+      })
+      .select('*, author:profiles(id, display_name, avatar_url)')
+      .single();
+
+    if (error) throw error;
+    const row = data as any;
+    return {
+      id: row.id,
+      taskId: row.task_id,
+      authorId: row.author_id,
+      content: row.content,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      author: row.author,
+    };
+  },
+
+  async deleteTaskComment(id: string): Promise<void> {
+    const { error } = await supabase.from('task_comments').delete().eq('id', id);
+    if (error) throw error;
   },
 
   // Create activity

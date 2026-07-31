@@ -17,6 +17,7 @@ function queryKeys(projectId: string | null) {
     sections: ['sections', projectId] as const,
     labels: ['labels', projectId] as const,
     activities: ['activities', projectId] as const,
+    comments: (taskId: string) => ['comments', taskId] as const,
   };
 }
 
@@ -71,6 +72,14 @@ export function useActivitiesQuery() {
     queryKey: queryKeys(activeProjectId).activities,
     queryFn: () => taskApi.listActivities(activeProjectId!),
     enabled: !!activeProjectId,
+  });
+}
+
+export function useTaskCommentsQuery(taskId: string | null) {
+  return useQuery({
+    queryKey: queryKeys(null).comments(taskId!),
+    queryFn: () => taskApi.listTaskComments(taskId!),
+    enabled: !!taskId,
   });
 }
 

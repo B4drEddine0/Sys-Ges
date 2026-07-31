@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format, isValid, parseISO } from 'date-fns';
 import { CalendarDays, Paperclip, MoreHorizontal, MessageSquare, CheckSquare, Clock, Archive, Edit2, Trash2 } from 'lucide-react';
-import { Avatar, Badge, Button, Modal, Progress } from '@/components/ui';
-import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from './taskHooks';
+import { Avatar, Badge, Button, Modal, Progress, Textarea } from '@/components/ui';
+import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery, useTaskCommentsQuery } from './taskHooks';
 import { useToast } from '@/providers/ToastProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { priorities, taskStatuses } from '@/lib/constants';
 import { cn } from '@/lib/cn';
 import type { Task } from '@/types';
@@ -30,8 +31,13 @@ export function TaskViewModal({
   const { data: sections = [] } = useSectionsQuery();
   const { data: labels = [] } = useLabelsQuery();
   const { data: activities = [] } = useActivitiesQuery();
-  const { patchTask } = useTaskMutations();
+  const { data: comments = [] } = useTaskCommentsQuery(taskId);
+  const { patchTask, createComment, deleteComment } = useTaskMutations();
   const { pushToast } = useToast();
+  const { profile } = useAuth();
+  
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const task = useMemo(() => tasks.find((item) => item.id === taskId) ?? null, [taskId, tasks]);
 
@@ -56,6 +62,19 @@ export function TaskViewModal({
       description: task.title,
     });
     onClose();
+  };
+
+  const handlePostComment = async () => {
+    if (!newComment.trim() || !task) return;
+    setIsSubmitting(true);
+    try {
+      await createComment.mutateAsync({ taskId: task.id, content: newComment.trim() });
+      setNewComment('');
+    } catch (err) {
+      pushToast({ title: 'Error', description: 'Failed to post comment', variant: 'destructive' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleToggleSubtask = async (subtaskId: string, currentCompleted: boolean) => {
@@ -149,9 +168,55 @@ export function TaskViewModal({
                   Comments
                 </h3>
                 
-                <div className="space-y-4">
-                  {/* Local comments component will go here in the next step when we fetch them */}
-                  <p className="text-sm text-muted-foreground italic">Comments are ready to be used once the database migration is applied.</p>
+                <div className="space-y-4 mt-6">
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No comments yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3 group">
+                          <Avatar 
+                            name={comment.author?.display_name?.slice(0, 2).toUpperCase() || 'U'} 
+                            src={comment.author?.avatar_url} 
+                            color="#2563eb" 
+                            className="h-8 w-8 mt-1" 
+                          />
+                          <div className="flex-1 bg-muted/30 rounded-xl p-3 border border-border">
+                            <div className="flex justify-between items-start mb-1">
+                              <div>
+                                <span className="font-semibold text-sm mr-2">{comment.author?.display_name || 'Unknown User'}</span>
+                                <span className="text-xs text-muted-foreground">{format(new Date(comment.createdAt), 'MMM d, h:mm a')}</span>
+                              </div>
+                              {profile?.id === comment.authorId && (
+                                <button 
+                                  onClick={() => deleteComment.mutate({ id: comment.id, taskId: task.id })}
+                                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-sm text-foreground whitespace-pre-wrap">{comment.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-3 mt-6">
+                    <Avatar name={profile?.display_name?.slice(0, 2).toUpperCase() || 'U'} src={profile?.avatar_url} color="#2563eb" className="h-8 w-8 mt-1" />
+                    <div className="flex-1 flex flex-col items-end gap-2">
+                      <Textarea 
+                        placeholder="Write a comment..." 
+                        value={newComment} 
+                        onChange={(e) => setNewComment(e.target.value)}
+                        className="bg-muted/30 min-h-[80px]" 
+                      />
+                      <Button size="sm" disabled={!newComment.trim() || isSubmitting} onClick={handlePostComment}>
+                        Post Comment
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
