@@ -50,12 +50,28 @@ export function useChatMutations() {
   });
 
   const sendMessage = useMutation({
-    mutationFn: ({ chatId, content, file }: { chatId: string; content: string; file?: File }) => 
-      chatApi.sendMessage(chatId, content, file),
+    mutationFn: ({ chatId, content, file, replyToId }: { chatId: string; content: string; file?: File; replyToId?: string }) => 
+      chatApi.sendMessage(chatId, content, file, replyToId),
     onSuccess: (_, { chatId }) => {
       // Invalidate specific chat's messages if you want, but realtime should handle it
       queryClient.invalidateQueries({ queryKey: chatKeys.messages(chatId) });
     },
+  });
+
+  const addReaction = useMutation({
+    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      chatApi.addReaction(messageId, emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all }); // or messages
+    }
+  });
+
+  const removeReaction = useMutation({
+    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      chatApi.removeReaction(messageId, emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all }); // or messages
+    }
   });
 
   const deleteMessage = useMutation({
@@ -67,7 +83,7 @@ export function useChatMutations() {
     }
   });
 
-  return { createChat, joinChat, sendMessage, deleteMessage };
+  return { createChat, joinChat, sendMessage, deleteMessage, addReaction, removeReaction };
 }
 
 export function useChatRealtime(activeChatId: string | null) {
@@ -94,8 +110,22 @@ export function useChatRealtime(activeChatId: string | null) {
       )
       .subscribe();
 
+    const channelReactions = supabase
+      .channel('global-reactions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_reactions' },
+        (payload) => {
+          if (activeChatId) {
+            void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeChatId) });
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(channelReactions);
     };
   }, [activeChatId, queryClient]);
 }

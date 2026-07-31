@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Activity, AlertTriangle, ArrowUpRight, CalendarDays, CheckCircle2, Clock3, FlaskConical, Users } from 'lucide-react';
 import { format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { Card, Panel, Progress, Skeleton } from '@/components/ui';
-import { useActivitiesQuery, useTasksQuery, useProjectMembersQuery } from '@/features/tasks/taskHooks';
+import { useActivitiesQuery, useTasksQuery, useProjectMembersQuery, useSectionsQuery } from '@/features/tasks/taskHooks';
 import { priorities } from '@/lib/constants';
 import { useProject } from '@/providers/ProjectProvider';
 import type { Task } from '@/types';
@@ -15,6 +15,7 @@ export function DashboardPage() {
   const { data: tasks = [], isLoading } = useTasksQuery();
   const { data: users = [] } = useProjectMembersQuery();
   const { data: activities = [] } = useActivitiesQuery();
+  const { data: sections = [] } = useSectionsQuery();
   const { activeProject } = useProject();
 
   const stats = useMemo(() => {
@@ -22,8 +23,6 @@ export function DashboardPage() {
     const done = statValue(tasks, (task) => task.status === 'done' && !task.archived);
     const testing = statValue(tasks, (task) => task.status === 'testing' && !task.archived);
     const critical = statValue(tasks, (task) => task.priority === 'critical' && !task.archived);
-    const frontend = tasks.filter((task) => task.section === 'frontend' && !task.archived);
-    const backend = tasks.filter((task) => task.section === 'backend' && !task.archived);
     const upcoming = tasks
       .filter((task) => task.dueDate && task.status !== 'done' && !task.archived)
       .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
@@ -34,12 +33,17 @@ export function DashboardPage() {
       done,
       testing,
       critical,
-      frontend,
-      backend,
       upcoming,
       completion: total ? Math.round((done / total) * 100) : 0,
     };
   }, [tasks]);
+
+  const sectionStats = useMemo(() => {
+    return sections.map(section => ({
+      ...section,
+      taskCount: tasks.filter(task => task.section === section.id && !task.archived).length
+    }));
+  }, [tasks, sections]);
 
   const tasksPerUser = useMemo(() => users.map((user) => ({
     user,
@@ -93,12 +97,15 @@ export function DashboardPage() {
           <div className="mt-5 space-y-4">
             <Progress value={stats.completion} />
             <div className="grid gap-3 md:grid-cols-2">
-              <Panel title="Frontend" action={<span className="text-sm text-muted-foreground">{stats.frontend.length} tasks</span>}>
-                <div className="text-sm text-muted-foreground">Independent board progress for the UI stream.</div>
-              </Panel>
-              <Panel title="Backend" action={<span className="text-sm text-muted-foreground">{stats.backend.length} tasks</span>}>
-                <div className="text-sm text-muted-foreground">Independent board progress for services and data.</div>
-              </Panel>
+              {sectionStats.length > 0 ? (
+                sectionStats.map(section => (
+                  <Panel key={section.id} title={section.name} action={<span className="text-sm text-muted-foreground">{section.taskCount} tasks</span>}>
+                    <div className="text-sm text-muted-foreground">Active progress for this board stream.</div>
+                  </Panel>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground col-span-2">No sections created yet.</div>
+              )}
             </div>
           </div>
         </Card>

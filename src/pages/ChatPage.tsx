@@ -4,20 +4,22 @@ import { useToast } from '@/providers/ToastProvider';
 import { useChatsQuery, useChatMessagesQuery, useChatMutations, useChatRealtime, useChatMembersQuery } from '@/features/chat/chatHooks';
 import { Button, Input, Avatar, Card } from '@/components/ui';
 import { chatApi } from '@/features/chat/chatApi';
-import { MessageSquare, Plus, Users, Hash, Send, Copy, LogOut, Paperclip, Trash2, X, File as FileIcon } from 'lucide-react';
+import { MessageSquare, Plus, Users, Hash, Send, Copy, LogOut, Paperclip, Trash2, X, File as FileIcon, Reply, SmilePlus } from 'lucide-react';
+import type { ChatMessage } from '@/features/chat/chatApi';
 import { format } from 'date-fns';
 
 export function ChatPage() {
   const { profile } = useAuth();
   const { pushToast } = useToast();
   const { data: chats = [], isLoading: isLoadingChats } = useChatsQuery();
-  const { createChat, joinChat, sendMessage, deleteMessage } = useChatMutations();
+  const { createChat, joinChat, sendMessage, deleteMessage, addReaction, removeReaction } = useChatMutations();
   
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [newChatName, setNewChatName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [message, setMessage] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   
   const activeChat = chats.find(c => c.id === activeChatId);
   
@@ -93,9 +95,10 @@ export function ChatPage() {
     e.preventDefault();
     if ((!message.trim() && !file) || !activeChatId) return;
     try {
-      await sendMessage.mutateAsync({ chatId: activeChatId, content: message.trim(), file: file || undefined });
+      await sendMessage.mutateAsync({ chatId: activeChatId, content: message.trim(), file: file || undefined, replyToId: replyingTo?.id });
       setMessage('');
       setFile(null);
+      setReplyingTo(null);
       setMentionPopup(false);
     } catch (err: any) {
       pushToast({ title: 'Failed to send', description: err.message, variant: 'destructive' });
@@ -253,21 +256,54 @@ export function ChatPage() {
                     )}
                     
                     <div className="flex items-center gap-2">
-                      {isMe && (
+                      <div className={`flex flex-col-reverse gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'items-end' : 'items-start'}`}>
+                        {isMe && (
+                          <button 
+                            onClick={() => deleteMessage.mutate({ messageId: msg.id, filePath: msg.file_path })}
+                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors"
+                            title="Delete Message"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                         <button 
-                          onClick={() => deleteMessage.mutate({ messageId: msg.id, filePath: msg.file_path })}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-all"
-                          title="Delete Message"
+                          onClick={() => setReplyingTo(msg)}
+                          className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
+                          title="Reply"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Reply className="h-4 w-4" />
                         </button>
-                      )}
+                        <div className="relative group/react">
+                          <button className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors" title="React">
+                            <SmilePlus className="h-4 w-4" />
+                          </button>
+                          <div className="absolute top-full mt-1 bg-card border border-border shadow-md rounded-full px-2 py-1 hidden group-hover/react:flex items-center gap-1 z-10 w-max -translate-x-1/2 left-1/2">
+                            {['👍', '❤️', '😂', '😮', '😢'].map(emoji => (
+                              <button
+                                key={emoji}
+                                onClick={() => addReaction.mutate({ messageId: msg.id, emoji })}
+                                className="text-lg hover:scale-125 transition-transform"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                       
-                      <div className={`px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
-                        isMe 
-                          ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-                          : 'bg-card border border-border text-card-foreground rounded-tl-sm'
-                      }`}>
+                      <div className="flex flex-col relative max-w-full">
+                        {msg.reply_to && (
+                          <div className={`text-xs opacity-70 mb-1 flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <Reply className="h-3 w-3" />
+                            <span className="font-semibold">{msg.reply_to.profile.display_name}</span>
+                            <span className="truncate max-w-[150px]">"{msg.reply_to.content}"</span>
+                          </div>
+                        )}
+                        <div className={`px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
+                          isMe 
+                            ? 'bg-primary text-primary-foreground rounded-tr-sm' 
+                            : 'bg-card border border-border text-card-foreground rounded-tl-sm'
+                        }`}>
                         {msg.file_path && (
                           <div className="mb-2">
                             {msg.file_type?.startsWith('image/') ? (
@@ -300,6 +336,27 @@ export function ChatPage() {
                           )
                         )}
                       </div>
+                      
+                      {msg.reactions && msg.reactions.length > 0 && (
+                        <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          {Array.from(new Set(msg.reactions.map(r => r.emoji))).map(emoji => {
+                            const count = msg.reactions!.filter(r => r.emoji === emoji).length;
+                            const hasReacted = msg.reactions!.some(r => r.emoji === emoji && r.user_id === profile?.id);
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={() => {
+                                  if (hasReacted) removeReaction.mutate({ messageId: msg.id, emoji });
+                                  else addReaction.mutate({ messageId: msg.id, emoji });
+                                }}
+                                className={`text-xs px-1.5 py-0.5 rounded-full border ${hasReacted ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-muted border-border text-foreground hover:bg-muted/80'} transition-colors flex items-center gap-1`}
+                              >
+                                {emoji} <span className="text-[10px] opacity-70 font-semibold">{count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -316,7 +373,21 @@ export function ChatPage() {
             </div>
 
             {/* Message Input */}
-            <div className="p-4 bg-background border-t border-border">
+            <div className="p-4 bg-background border-t border-border flex flex-col gap-2">
+              {replyingTo && (
+                <div className="max-w-4xl mx-auto w-full px-2">
+                  <div className="flex items-center justify-between bg-muted/50 border border-border px-3 py-2 rounded-lg text-sm">
+                    <div className="flex items-center gap-2 truncate">
+                      <Reply className="h-4 w-4 text-primary" />
+                      <span className="font-semibold">{replyingTo.profile?.display_name}:</span>
+                      <span className="truncate text-muted-foreground">{replyingTo.content}</span>
+                    </div>
+                    <button onClick={() => setReplyingTo(null)} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
               {file && (
                 <div className="max-w-4xl mx-auto mb-2 px-2 flex items-center gap-2">
                   <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-md text-sm border border-border">

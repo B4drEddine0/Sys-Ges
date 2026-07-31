@@ -26,6 +26,9 @@ export interface ChatMessage {
   file_size?: number | null;
   file_type?: string | null;
   profile?: { id: string; display_name: string; avatar_url?: string };
+  reply_to_id?: string | null;
+  reply_to?: { content: string; profile: { display_name: string } };
+  reactions?: { emoji: string; user_id: string; profile: { display_name: string } }[];
 }
 
 export const chatApi = {
@@ -75,7 +78,12 @@ export const chatApi = {
   async getMessages(chatId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('*, profile:profiles(*)')
+      .select(`
+        *, 
+        profile:profiles(*),
+        reply_to:chat_messages!reply_to_id(content, profile:profiles(display_name)),
+        reactions:chat_reactions(emoji, user_id, profile:profiles(display_name))
+      `)
       .eq('chat_id', chatId)
       .order('created_at', { ascending: true });
     assertNoError(error);
@@ -92,7 +100,7 @@ export const chatApi = {
     return (data || []).map(row => row.profiles);
   },
 
-  async sendMessage(chatId: string, content: string, file?: File): Promise<void> {
+  async sendMessage(chatId: string, content: string, file?: File, replyToId?: string): Promise<void> {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
 
@@ -125,7 +133,8 @@ export const chatApi = {
         file_path: filePath,
         file_name: fileName,
         file_size: fileSize,
-        file_type: fileType
+        file_type: fileType,
+        reply_to_id: replyToId || null
       });
     assertNoError(error);
 
@@ -185,5 +194,31 @@ export const chatApi = {
 
   getAttachmentUrl(filePath: string): string {
     return supabase.storage.from('chat_attachments').getPublicUrl(filePath).data.publicUrl;
+  },
+
+  async addReaction(messageId: string, emoji: string): Promise<void> {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('chat_reactions')
+      .insert({ message_id: messageId, user_id: userData.user.id, emoji });
+    
+    // Ignore duplicate key errors if they already reacted
+    if (error && error.code !== '23505') throw error;
+  },
+
+  async removeReaction(messageId: string, emoji: string): Promise<void> {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('chat_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', userData.user.id)
+      .eq('emoji', emoji);
+    
+    assertNoError(error);
   }
 };
