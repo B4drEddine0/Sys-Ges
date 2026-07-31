@@ -360,8 +360,9 @@ export function ChatPage() {
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
             {messages.length === 0 && !isLoadingMessages && (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-60">
                 <MessageSquare className="h-16 w-16 mb-4 opacity-50" />
