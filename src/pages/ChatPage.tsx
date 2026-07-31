@@ -49,6 +49,13 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Mark chat as read
+  useEffect(() => {
+    if (activeChatId) {
+      chatApi.updateChatLastRead(activeChatId).catch(() => {});
+    }
+  }, [activeChatId, messages.length]);
+
   // Set active chat automatically if none selected
   useEffect(() => {
     if (chats.length > 0 && !activeChatId) {
@@ -168,12 +175,19 @@ export function ChatPage() {
             <button
               key={chat.id}
               onClick={() => setActiveChatId(chat.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-colors ${
                 activeChatId === chat.id ? 'bg-primary text-primary-foreground shadow-md' : 'hover:bg-muted'
               }`}
             >
-              <Hash className="h-4 w-4 opacity-70" />
-              <span className="font-medium truncate">{chat.name}</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <Hash className="h-4 w-4 opacity-70 shrink-0" />
+                <span className={`font-medium truncate ${chat.unread_count && chat.unread_count > 0 && activeChatId !== chat.id ? 'font-bold' : ''}`}>{chat.name}</span>
+              </div>
+              {chat.unread_count && chat.unread_count > 0 && activeChatId !== chat.id ? (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${activeChatId === chat.id ? 'bg-primary-foreground text-primary' : 'bg-rose-500 text-white'}`}>
+                  {chat.unread_count}
+                </span>
+              ) : null}
             </button>
           ))}
           {chats.length === 0 && !isLoadingChats && (

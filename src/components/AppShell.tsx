@@ -7,6 +7,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProject } from '@/providers/ProjectProvider';
 import { useRealtimeSubscription, useSectionsQuery } from '@/features/tasks/taskHooks';
+import { useChatsQuery } from '@/features/chat/chatHooks';
 import { useEffect, useState } from 'react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth();
   const { activeProject, setActiveProjectId, activeRole } = useProject();
   const { data: sections = [] } = useSectionsQuery();
+  const { data: chats = [] } = useChatsQuery();
 
   // Activate project from URL param
   useEffect(() => {
@@ -47,6 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const initials = (profile?.display_name ?? 'U').slice(0, 2).toUpperCase();
+  const totalUnreadChats = chats.reduce((acc, chat) => acc + (chat.unread_count || 0), 0);
 
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
@@ -65,8 +68,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button onClick={() => navigate('/projects')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted">
               <FolderKanban className="h-4 w-4" />All Projects
             </button>
-            <button onClick={() => navigate('/chat')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted">
-              <MessageSquare className="h-4 w-4" />Team Chat
+            <button onClick={() => navigate('/chat')} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted group">
+              <div className="flex items-center gap-3">
+                <MessageSquare className="h-4 w-4" />Team Chat
+              </div>
+              {totalUnreadChats > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {totalUnreadChats}
+                </span>
+              )}
             </button>
             {profile?.is_super_admin && (
               <button onClick={() => navigate('/system')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive hover:bg-destructive/10">

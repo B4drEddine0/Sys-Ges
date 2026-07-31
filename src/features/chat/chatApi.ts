@@ -12,6 +12,7 @@ export interface Chat {
   name: string;
   join_code: string;
   created_at: string;
+  unread_count?: number;
 }
 
 export interface ChatMessage {
@@ -29,12 +30,16 @@ export interface ChatMessage {
 
 export const chatApi = {
   async getMyChats(): Promise<Chat[]> {
-    const { data, error } = await supabase
-      .from('chats')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.rpc('get_my_chats_with_unread');
     assertNoError(error);
     return data || [];
+  },
+
+  async updateChatLastRead(chatId: string): Promise<void> {
+    const { error } = await supabase.rpc('update_chat_last_read', {
+      p_chat_id: chatId
+    });
+    if (error) console.error('Failed to update read receipt', error);
   },
 
   async createChat(name: string): Promise<Chat> {
