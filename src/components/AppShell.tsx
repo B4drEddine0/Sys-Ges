@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, Avatar as AvatarIcon, FolderKanban, MessageSquare, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare, ShieldAlert } from 'lucide-react';
 import { Button, Input, Avatar } from './ui';
 import { useShell } from '@/providers/ShellProvider';
 import { useTheme } from '@/providers/ThemeProvider';
