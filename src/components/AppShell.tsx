@@ -1,18 +1,29 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, Avatar as AvatarIcon, FolderKanban, MessageSquare, ShieldAlert } from 'lucide-react';
 import { Button, Input, Avatar } from './ui';
 import { useShell } from '@/providers/ShellProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProject } from '@/providers/ProjectProvider';
-import { useRealtimeSubscription } from '@/features/tasks/taskHooks';
-import { useSectionsQuery } from '@/features/tasks/taskHooks';
-import { useEffect } from 'react';
+import { useRealtimeSubscription, useSectionsQuery } from '@/features/tasks/taskHooks';
+import { useEffect, useState } from 'react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const params = useParams();
-  const projectId = params.projectId;
+  const { projectId: urlProjectId } = useParams();
+  
+  // Remember the last project ID so the sidebar doesn't collapse when navigating to global routes like /chat
+  const [projectId, setProjectId] = useState<string | undefined>(urlProjectId);
+  useEffect(() => {
+    if (urlProjectId) {
+      setProjectId(urlProjectId);
+      localStorage.setItem('sysges_last_project', urlProjectId);
+    } else {
+      const stored = localStorage.getItem('sysges_last_project');
+      if (stored) setProjectId(stored);
+    }
+  }, [urlProjectId]);
+
   const { search, setSearch } = useShell();
   const { theme, setTheme } = useTheme();
   const { profile, signOut } = useAuth();
@@ -53,9 +64,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button onClick={() => navigate('/projects')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted">
               <FolderKanban className="h-4 w-4" />All Projects
             </button>
-            <button onClick={() => navigate('/chat')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted text-primary">
+            <button onClick={() => navigate('/chat')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted">
               <MessageSquare className="h-4 w-4" />Team Chat
             </button>
+            {profile?.is_super_admin && (
+              <button onClick={() => navigate('/system')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive hover:bg-destructive/10">
+                <ShieldAlert className="h-4 w-4" />System Admin
+              </button>
+            )}
           {projectId && (
             <>
               <button onClick={() => navigate(`/project/${projectId}`)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted">

@@ -14,6 +14,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ChatPage } from '@/pages/ChatPage';
+import { SystemAdminPage } from '@/pages/SystemAdminPage';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -82,6 +83,17 @@ export function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/system"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <SystemAdminPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </ErrorBoundary>

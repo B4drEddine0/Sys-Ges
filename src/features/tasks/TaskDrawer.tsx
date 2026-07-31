@@ -9,9 +9,6 @@ import type { Activity as ActivityType, Task } from '@/types';
 import { useActivitiesQuery, useLabelsQuery, useSectionsQuery, useTaskMutations, useTasksQuery, useProjectMembersQuery } from './taskHooks';
 import { useToast } from '@/providers/ToastProvider';
 import { format, parseISO } from 'date-fns';
-import JoditEditor from 'jodit-react';
-
-const joditConfig = { theme: 'dark' };
 
 const taskSchema = z.object({
   id: z.string().optional(),
@@ -140,20 +137,10 @@ export function TaskDrawer({
     }
   });
 
-  const handleClose = () => {
-    if (task && form.formState.isDirty) {
-      void form.handleSubmit(async (values) => {
-        await updateTask.mutateAsync(buildTaskPayload(task, values));
-        pushToast({ title: 'Changes saved', description: values.title });
-      })();
-    }
-    onClose();
-  };
-
   const assigneeValue = form.watch('assigneeIds')[0] ?? 'unassigned';
 
   return (
-    <Drawer open={open} title={task ? 'Edit Task' : 'Create New Task'} onClose={handleClose}>
+    <Drawer open={open} title={task ? 'Edit Task' : 'Create New Task'} onClose={onClose}>
       <form className="space-y-8 pb-10" onSubmit={save}>
         
         {/* Core Info */}
@@ -168,19 +155,7 @@ export function TaskDrawer({
 
           <div>
             <label className="block text-sm font-medium mb-1.5">Description</label>
-            <div className="bg-card rounded-md">
-              <Controller
-                name="description"
-                control={form.control}
-                render={({ field }) => (
-                  <JoditEditor 
-                    value={field.value} 
-                    onChange={(newContent) => field.onChange(newContent)} 
-                    config={joditConfig} 
-                  />
-                )}
-              />
-            </div>
+            <Textarea {...form.register('description')} placeholder="Add a detailed description..." rows={5} className="bg-muted/30" />
           </div>
         </div>
 
@@ -322,19 +297,7 @@ export function TaskDrawer({
         {/* Internal Notes */}
         <div className="space-y-4">
           <SectionHeading title="Internal Notes" icon={FileText} />
-          <div className="bg-card rounded-md">
-            <Controller
-              name="notes"
-              control={form.control}
-              render={({ field }) => (
-                <JoditEditor 
-                  value={field.value} 
-                  onChange={(newContent) => field.onChange(newContent)} 
-                  config={joditConfig} 
-                />
-              )}
-            />
-          </div>
+          <Textarea {...form.register('notes')} placeholder="Private implementation notes, edge cases, reminders..." rows={3} className="bg-muted/30" />
         </div>
 
         {/* Footer Actions */}
