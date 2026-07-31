@@ -122,22 +122,15 @@ export function TaskDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId, form]);
 
-  useEffect(() => {
-    if (!task || !form.formState.isDirty) return;
-    const handle = window.setTimeout(() => {
-      void form.handleSubmit(async (values) => {
-        await updateTask.mutateAsync(buildTaskPayload(task, values));
-        pushToast({ title: 'Task autosaved', description: values.title });
-      })();
-    }, 900);
-
-    return () => window.clearTimeout(handle);
-  }, [form, pushToast, task, updateTask]);
+  // We no longer auto-save while typing to avoid interruption. 
+  // Instead, we save automatically when the user closes the modal if there are unsaved changes.
 
   const save = form.handleSubmit(async (values) => {
     if (task) {
       await updateTask.mutateAsync(buildTaskPayload(task, values));
       pushToast({ title: 'Task updated', description: values.title });
+      // Reset form state so isDirty is false after explicit save
+      form.reset(values);
     } else {
       const created = await createTask.mutateAsync(buildTaskPayload(null, values));
       pushToast({ title: 'Task created', description: created.title });
@@ -145,10 +138,20 @@ export function TaskDrawer({
     }
   });
 
+  const handleClose = () => {
+    if (task && form.formState.isDirty) {
+      void form.handleSubmit(async (values) => {
+        await updateTask.mutateAsync(buildTaskPayload(task, values));
+        pushToast({ title: 'Changes saved', description: values.title });
+      })();
+    }
+    onClose();
+  };
+
   const assigneeValue = form.watch('assigneeIds')[0] ?? 'unassigned';
 
   return (
-    <Drawer open={open} title={task ? 'Edit Task' : 'Create New Task'} onClose={onClose}>
+    <Drawer open={open} title={task ? 'Edit Task' : 'Create New Task'} onClose={handleClose}>
       <form className="space-y-8 pb-10" onSubmit={save}>
         
         {/* Core Info */}
