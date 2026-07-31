@@ -182,7 +182,22 @@ export function useTaskMutations() {
     },
   });
 
-  return { createTask, updateTask, patchTask, deleteTask };
+  const createComment = useMutation({
+    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
+      taskApi.createTaskComment(taskId, content),
+    onSuccess: (comment) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys(null).comments(comment.taskId) });
+    },
+  });
+
+  const deleteComment = useMutation({
+    mutationFn: ({ id, taskId }: { id: string; taskId: string }) => taskApi.deleteTaskComment(id),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys(null).comments(variables.taskId) });
+    },
+  });
+
+  return { createTask, updateTask, patchTask, deleteTask, createComment, deleteComment };
 }
 
 // ============================================================
