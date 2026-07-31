@@ -137,11 +137,33 @@ export function TaskDrawer({
     }
   });
 
+  const autoSave = () => {
+    if (task && form.formState.isDirty) {
+      void form.handleSubmit(async (values) => {
+        await updateTask.mutateAsync(buildTaskPayload(task, values));
+        form.reset(values, { keepValues: true });
+        pushToast({ title: 'Changes saved', description: values.title });
+      })();
+    }
+  };
+
+  const handleBlur = () => {
+    autoSave();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLFormElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'SELECT' || (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox')) {
+      // Small delay to ensure react-hook-form has updated its internal state
+      setTimeout(() => autoSave(), 0);
+    }
+  };
+
   const assigneeValue = form.watch('assigneeIds')[0] ?? 'unassigned';
 
   return (
     <Drawer open={open} title={task ? 'Edit Task' : 'Create New Task'} onClose={onClose}>
-      <form className="space-y-8 pb-10" onSubmit={save}>
+      <form className="space-y-8 pb-10" onSubmit={save} onBlur={handleBlur} onChange={handleChange}>
         
         {/* Core Info */}
         <div className="space-y-6">
