@@ -186,7 +186,7 @@ export function ImportTasksModal({ open, onClose }: ImportTasksModalProps) {
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <Button variant="outline" className="w-full sm:w-1/2" onClick={handleDownloadTemplate}>
+            <Button variant="secondary" className="w-full sm:w-1/2" onClick={handleDownloadTemplate}>
               <FileDown className="h-4 w-4 mr-2" /> Download Template
             </Button>
             

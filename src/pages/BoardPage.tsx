@@ -227,7 +227,7 @@ export function BoardPage() {
             <p className="mt-1 text-sm text-muted-foreground">Search, filter, drag, and manage work with instant persistence.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>Import CSV</Button>
+            <Button variant="secondary" onClick={() => setIsImportModalOpen(true)}>Import CSV</Button>
             <Button variant="secondary" onClick={() => setDrawerTaskId('new')}><Plus className="h-4 w-4" /> New task</Button>
             <Select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="min-w-40">
               {sortOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
