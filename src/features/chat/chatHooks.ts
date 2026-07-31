@@ -70,19 +70,26 @@ export function useChatMutations() {
   return { createChat, joinChat, sendMessage, deleteMessage };
 }
 
-export function useChatRealtime(chatId: string | null) {
+export function useChatRealtime(activeChatId: string | null) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!chatId) return;
-
     const channel = supabase
-      .channel(`chat-${chatId}`)
+      .channel('global-chat-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: chatKeys.messages(chatId) });
+        { event: '*', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          // If the message belongs to the currently active chat, invalidate those messages
+          if (payload.new && 'chat_id' in payload.new && payload.new.chat_id === activeChatId) {
+            void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeChatId) });
+          }
+          if (payload.old && 'chat_id' in payload.old && payload.old.chat_id === activeChatId) {
+            void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeChatId) });
+          }
+          
+          // Always invalidate the chat list to update unread counters globally
+          void queryClient.invalidateQueries({ queryKey: chatKeys.all });
         }
       )
       .subscribe();
@@ -90,5 +97,5 @@ export function useChatRealtime(chatId: string | null) {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [chatId, queryClient]);
+  }, [activeChatId, queryClient]);
 }

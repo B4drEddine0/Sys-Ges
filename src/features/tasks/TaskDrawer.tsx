@@ -45,7 +45,7 @@ function toFormValues(task: Task | null): TaskFormValues {
     title: '',
     description: '',
     status: 'todo',
-    section: 'frontend',
+    section: '',
     assigneeIds: [],
     priority: 'medium',
     labelIds: [],
@@ -189,8 +189,9 @@ export function TaskDrawer({
           
           <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Project Section</label>
-              <Select {...form.register('section')}>
+              <label className="block text-sm font-medium mb-1.5">Project Section *</label>
+              <Select {...form.register('section')} className={form.formState.errors.section ? 'border-rose-500' : ''}>
+                <option value="" disabled>Select a section</option>
                 {sections.length > 0
                   ? sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)
                   : (
@@ -201,6 +202,7 @@ export function TaskDrawer({
                     )
                 }
               </Select>
+              {form.formState.errors.section && <p className="mt-1 text-xs text-rose-600">Please select a section</p>}
             </div>
             
             <div>
