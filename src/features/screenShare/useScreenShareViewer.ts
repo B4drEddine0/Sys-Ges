@@ -38,8 +38,14 @@ export function useScreenShareViewer({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const joinIntervalRef = useRef<number | null>(null);
 
   const disconnect = useCallback(() => {
+    if (joinIntervalRef.current !== null) {
+      clearInterval(joinIntervalRef.current);
+      joinIntervalRef.current = null;
+    }
+
     pcRef.current?.close();
     pcRef.current = null;
 
@@ -99,8 +105,14 @@ export function useScreenShareViewer({
 
     // Listen for the offer specifically addressed to us
     channel.on('broadcast', { event: `${SIGNALING_EVENTS.OFFER}:${userId}` }, async ({ payload }) => {
+      if (joinIntervalRef.current !== null) {
+        clearInterval(joinIntervalRef.current); // Stop asking to join once we get an offer
+        joinIntervalRef.current = null;
+      }
+
       const { offer, sharerId } = payload as { offer: RTCSessionDescriptionInit; sharerId: string };
       if (!pc || pc.signalingState !== 'stable') return;
+
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -172,12 +184,16 @@ export function useScreenShareViewer({
     // Subscribe and then announce our presence so sharer creates an offer for us
     await channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        // Announce to the sharer that we want to watch
-        channel.send({
-          type: 'broadcast',
-          event: SIGNALING_EVENTS.VIEWER_JOIN,
-          payload: { viewerId: userId },
-        });
+        const sendJoin = () => {
+          channel.send({
+            type: 'broadcast',
+            event: SIGNALING_EVENTS.VIEWER_JOIN,
+            payload: { viewerId: userId },
+          });
+        };
+        sendJoin(); // send immediately
+        // Retry until offer is received
+        joinIntervalRef.current = window.setInterval(sendJoin, 2000);
       }
     });
   }, [session, userId, state, disconnect, onEnded, onError]);

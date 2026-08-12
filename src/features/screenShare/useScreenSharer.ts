@@ -204,7 +204,7 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
     // Listen for viewers wanting to connect
     channel.on('broadcast', { event: SIGNALING_EVENTS.VIEWER_JOIN }, async ({ payload }) => {
       const { viewerId } = payload as { viewerId: string };
-      if (!viewerId || viewerId === userId) return;
+      if (!viewerId || viewerId === userId || peersRef.current.has(viewerId)) return;
       await createPeerForViewer(viewerId, channel);
     });
 
