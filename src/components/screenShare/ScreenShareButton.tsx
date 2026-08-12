@@ -40,6 +40,23 @@ export function ScreenShareButton({ controls, someoneElseSharing }: ScreenShareB
     );
   }
 
+  const isSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
+
+  if (!isSupported) {
+    return (
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled
+        className="flex items-center gap-2 font-medium opacity-50"
+        title="Screen sharing isn't supported on this browser/device"
+      >
+        <MonitorOff className="h-4 w-4" />
+        <span className="hidden sm:inline">Unsupported Device</span>
+      </Button>
+    );
+  }
+
   return (
     <Button
       onClick={startSharing}

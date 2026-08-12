@@ -274,8 +274,8 @@ export function ChatPage() {
               </div>
             </div>
 
-            {/* Screen Share Button — only show if browser supports getDisplayMedia */}
-            {typeof navigator !== 'undefined' && 'mediaDevices' in navigator && profile && (
+            {/* Screen Share Button */}
+            {profile && (
               <ScreenShareButton
                 controls={sharerControls}
                 someoneElseSharing={someoneElseSharing}
