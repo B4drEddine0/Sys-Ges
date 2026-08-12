@@ -181,8 +181,8 @@ export function ChatPage() {
 
   return (
     <div className="absolute inset-0 flex bg-background">
-      {/* Sidebar */}
-      <div className="w-80 flex-shrink-0 border-r border-border flex flex-col bg-muted/10">
+      {/* Sidebar - hidden on mobile if a chat is active */}
+      <div className={`w-full md:w-80 flex-shrink-0 border-r border-border flex-col bg-muted/10 ${activeChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-border space-y-4">
           <h2 className="text-xl font-bold flex items-center gap-2 tracking-tight">
             <MessageSquare className="h-5 w-5 text-primary" /> Team Chat
@@ -240,13 +240,19 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Main Chat Area */}
+      {/* Main Chat Area - hidden on mobile if NO chat is active */}
       {activeChat ? (
-        <div className="flex-1 flex flex-col min-w-0 bg-background">
+        <div className={`flex-1 flex-col min-w-0 bg-background ${activeChat ? 'flex' : 'hidden md:flex'}`}>
           {/* Chat Header */}
-          <header className="h-16 flex-shrink-0 flex items-center justify-between px-6 border-b border-border bg-card/50 backdrop-blur">
+          <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border bg-card/50 backdrop-blur">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <button 
+                onClick={() => setActiveChatId(null)} 
+                className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                 <Hash className="h-5 w-5" />
               </div>
               <div>

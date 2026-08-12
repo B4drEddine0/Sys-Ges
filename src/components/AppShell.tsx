@@ -51,9 +51,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const initials = (profile?.display_name ?? 'U').slice(0, 2).toUpperCase();
   const totalUnreadChats = chats.reduce((acc, chat) => acc + (chat.unread_count || 0), 0);
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile menu when navigating
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [navigate]);
+
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
-      <aside className="hidden w-72 shrink-0 border-r border-border bg-card/40 px-5 py-6 lg:flex lg:flex-col">
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/50 lg:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - responsive */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 shrink-0 border-r border-border bg-card px-5 py-6 flex flex-col transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <div className="mb-8">
           <div className="flex items-center gap-3">
             <img src="/sys-ges-logo.png" alt="Sys-Ges" className="h-11 w-11 rounded-2xl object-contain" />
@@ -64,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="space-y-2 text-sm">
+        <nav className="space-y-2 text-sm flex-1 overflow-y-auto pr-2">
             <button onClick={() => navigate('/projects')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-muted">
               <FolderKanban className="h-4 w-4" />All Projects
             </button>
@@ -112,24 +128,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </>
           )}
+        
+          {projectId && sections.length > 0 && (
+            <div className="mt-8 rounded-2xl border border-border bg-muted/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Sections</p>
+              <div className="mt-3 space-y-2">
+                {sections.map((section) => (
+                  <button key={section.id} onClick={() => navigate(`/project/${projectId}/board/${section.id}`)} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-muted">
+                    <span>{section.name}</span>
+                    <span className="text-xs text-muted-foreground">Board</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
 
-        {projectId && sections.length > 0 && (
-          <div className="mt-8 rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Sections</p>
-            <div className="mt-3 space-y-2">
-              {sections.map((section) => (
-                <button key={section.id} onClick={() => navigate(`/project/${projectId}/board/${section.id}`)} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-muted">
-                  <span>{section.name}</span>
-                  <span className="text-xs text-muted-foreground">Board</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* User section */}
-        <div className="mt-auto space-y-2 pt-6 border-t border-border">
+        <div className="mt-auto space-y-2 pt-6 border-t border-border shrink-0">
           <button onClick={() => navigate('/profile')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-muted">
             <Avatar name={initials} color="#2563eb" src={profile?.avatar_url} className="h-8 w-8" />
             <div className="min-w-0 flex-1">
@@ -146,15 +162,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-full min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex items-center gap-3 px-4 py-4 lg:px-6">
+            <button 
+              className="lg:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            </button>
             <div className="relative max-w-xl flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, description, labels, assignee…" className="pl-9" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search..." className="pl-9" />
             </div>
             <Button variant="secondary" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="shrink-0">
               {theme === 'dark' ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </Button>
             <NotificationsPopover />
-            <button onClick={() => navigate('/profile')} className="flex items-center justify-center lg:hidden">
+            <button onClick={() => navigate('/profile')} className="hidden lg:flex items-center justify-center">
               <Avatar name={initials} color="#2563eb" src={profile?.avatar_url} className="h-9 w-9" />
             </button>
           </div>
