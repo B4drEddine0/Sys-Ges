@@ -103,7 +103,7 @@ export function useScreenShareViewer({
 
         channel.send({
           type: 'broadcast',
-          event: `${SIGNALING_EVENTS.ANSWER}:${sharerId}:${userId}`,
+          event: `${SIGNALING_EVENTS.ANSWER}:${sharerId}`,
           payload: { answer: pc.localDescription?.toJSON(), viewerId: userId },
         });
       } catch (e: any) {
@@ -135,7 +135,7 @@ export function useScreenShareViewer({
       if (!candidate) return;
       channel.send({
         type: 'broadcast',
-        event: `${SIGNALING_EVENTS.ICE_CANDIDATE}:${userId}:${session.sharer_id}`,
+        event: `${SIGNALING_EVENTS.ICE_CANDIDATE}:${session.sharer_id}`,
         payload: { candidate: candidate.toJSON(), viewerId: userId },
       });
     };
