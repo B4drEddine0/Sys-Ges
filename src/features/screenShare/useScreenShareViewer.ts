@@ -65,10 +65,16 @@ export function useScreenShareViewer({
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     pcRef.current = pc;
 
+    const queuedCandidates: RTCIceCandidateInit[] = [];
+
     // When we receive remote tracks, attach them to the video element
     pc.ontrack = (event) => {
-      if (videoRef.current && event.streams[0]) {
-        videoRef.current.srcObject = event.streams[0];
+      if (videoRef.current) {
+        if (event.streams && event.streams[0]) {
+          videoRef.current.srcObject = event.streams[0];
+        } else {
+          videoRef.current.srcObject = new MediaStream([event.track]);
+        }
         setState('watching');
       }
     };
@@ -98,6 +104,17 @@ export function useScreenShareViewer({
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        // Process any queued ICE candidates that arrived before the offer
+        for (const candidate of queuedCandidates) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.warn('[ScreenShare viewer] queued addIceCandidate failed:', e);
+          }
+        }
+        queuedCandidates.length = 0; // clear queue
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
@@ -121,10 +138,15 @@ export function useScreenShareViewer({
       async ({ payload }) => {
         const { candidate } = payload as { candidate: RTCIceCandidateInit };
         if (pc && candidate) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (e) {
-            console.warn('[ScreenShare viewer] addIceCandidate failed:', e);
+          if (!pc.remoteDescription) {
+            // Offer not yet set, queue it!
+            queuedCandidates.push(candidate);
+          } else {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+              console.warn('[ScreenShare viewer] addIceCandidate failed:', e);
+            }
           }
         }
       },

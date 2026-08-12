@@ -39,6 +39,7 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
   const streamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const queuedCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const sessionRef = useRef<ScreenShareSession | null>(null);
 
   // Keep sessionRef in sync with state
@@ -205,8 +206,6 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
       const { viewerId } = payload as { viewerId: string };
       if (!viewerId || viewerId === userId) return;
       await createPeerForViewer(viewerId, channel);
-    });
-
     // Listen for answers from viewers
     channel.on('broadcast', { event: `${SIGNALING_EVENTS.ANSWER}:${userId}` }, async ({ payload }) => {
       const { answer, viewerId } = payload as { answer: RTCSessionDescriptionInit; viewerId: string };
@@ -214,6 +213,17 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
       if (pc && pc.signalingState !== 'stable') {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
+
+          // Process queued candidates for this viewer
+          const candidates = queuedCandidates.current.get(viewerId) || [];
+          for (const candidate of candidates) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+              console.warn('[ScreenShare sharer] queued addIceCandidate failed:', e);
+            }
+          }
+          queuedCandidates.current.delete(viewerId);
         } catch (e) {
           console.warn('[ScreenShare sharer] setRemoteDescription failed:', e);
         }
@@ -225,10 +235,17 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
       const { candidate, viewerId } = payload as { candidate: RTCIceCandidateInit; viewerId: string };
       const pc = peersRef.current.get(viewerId);
       if (pc && candidate) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.warn('[ScreenShare sharer] addIceCandidate failed:', e);
+        if (!pc.remoteDescription) {
+          // Answer not yet set, queue it!
+          const queue = queuedCandidates.current.get(viewerId) || [];
+          queue.push(candidate);
+          queuedCandidates.current.set(viewerId, queue);
+        } else {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.warn('[ScreenShare sharer] addIceCandidate failed:', e);
+          }
         }
       }
     });
