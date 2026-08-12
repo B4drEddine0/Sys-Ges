@@ -145,7 +145,7 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
 
     // Check for browser support
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      const msg = 'Screen sharing is not supported in this browser. Try Chrome or Edge.';
+      const msg = 'Screen sharing is not supported on mobile browsers (iOS/Android). Please use a desktop browser.';
       setErrorMessage(msg);
       setState('error');
       onError?.(msg);

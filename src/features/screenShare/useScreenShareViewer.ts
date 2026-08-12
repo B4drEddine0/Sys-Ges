@@ -81,6 +81,12 @@ export function useScreenShareViewer({
         } else {
           videoRef.current.srcObject = new MediaStream([event.track]);
         }
+        
+        // Explicitly call play() to fix iOS Safari/Chrome black screen issues
+        videoRef.current.play().catch((e) => {
+          console.warn('[ScreenShare viewer] auto-play prevented:', e);
+        });
+
         setState('watching');
       }
     };
