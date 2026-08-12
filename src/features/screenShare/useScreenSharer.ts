@@ -206,6 +206,8 @@ export function useScreenSharer({ chatId, userId, onError }: UseSharerOptions): 
       const { viewerId } = payload as { viewerId: string };
       if (!viewerId || viewerId === userId) return;
       await createPeerForViewer(viewerId, channel);
+    });
+
     // Listen for answers from viewers
     channel.on('broadcast', { event: `${SIGNALING_EVENTS.ANSWER}:${userId}` }, async ({ payload }) => {
       const { answer, viewerId } = payload as { answer: RTCSessionDescriptionInit; viewerId: string };
