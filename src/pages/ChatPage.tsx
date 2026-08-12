@@ -8,6 +8,13 @@ import { MessageSquare, Plus, Users, Hash, Send, Copy, LogOut, Paperclip, Trash2
 import type { ChatMessage } from '@/features/chat/chatApi';
 import { format } from 'date-fns';
 
+// --- Screen Share imports ---
+import { useScreenSharer } from '@/features/screenShare/useScreenSharer';
+import { useActiveScreenShareSession } from '@/features/screenShare/useActiveScreenShareSession';
+import { ScreenShareButton } from '@/components/screenShare/ScreenShareButton';
+import { ScreenShareBanner } from '@/components/screenShare/ScreenShareBanner';
+import { ScreenShareViewer } from '@/components/screenShare/ScreenShareViewer';
+
 export function ChatPage() {
   const { profile } = useAuth();
   const { pushToast } = useToast();
@@ -30,6 +37,35 @@ export function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLength = useRef(0);
+
+  // ─── Screen Share State ──────────────────────────────────────────────────────
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  // Track the active session in the current room (Postgres CDC)
+  const activeSession = useActiveScreenShareSession(activeChatId);
+
+  // Sharer controls for the current user
+  const sharerControls = useScreenSharer({
+    chatId: activeChatId ?? '',
+    userId: profile?.id ?? '',
+    onError: (msg) => pushToast({ title: 'Screen share error', description: msg, variant: 'destructive' }),
+  });
+
+  // When the active session ends (someone else was sharing), close the viewer if open
+  useEffect(() => {
+    if (!activeSession && isViewerOpen) {
+      setIsViewerOpen(false);
+    }
+  }, [activeSession, isViewerOpen]);
+
+  // When the user switches chats, stop sharing and close viewer
+  useEffect(() => {
+    if (sharerControls.state === 'sharing') {
+      sharerControls.stopSharing();
+    }
+    setIsViewerOpen(false);
+  }, [activeChatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ────────────────────────────────────────────────────────────────────────────
 
   // Play sound on new messages
   useEffect(() => {
@@ -138,6 +174,11 @@ export function ChatPage() {
 
   const filteredMembers = members.filter(m => m.display_name?.replace(/\s+/g, '').toLowerCase().includes(mentionFilter));
 
+  // Is someone else (not the current user) sharing in this room?
+  const someoneElseSharing = !!(activeSession && activeSession.sharer_id !== profile?.id);
+  // Is the current user the sharer?
+  const iAmSharing = sharerControls.state === 'sharing';
+
   return (
     <div className="absolute inset-0 flex bg-background">
       {/* Sidebar */}
@@ -226,7 +267,25 @@ export function ChatPage() {
                 </div>
               </div>
             </div>
+
+            {/* Screen Share Button — only show if browser supports getDisplayMedia */}
+            {typeof navigator !== 'undefined' && 'mediaDevices' in navigator && profile && (
+              <ScreenShareButton
+                controls={sharerControls}
+                someoneElseSharing={someoneElseSharing}
+              />
+            )}
           </header>
+
+          {/* Screen Share Banner — shown to viewers when someone is sharing */}
+          {activeSession && !iAmSharing && profile && (
+            <ScreenShareBanner
+              session={activeSession}
+              currentUserId={profile.id}
+              onWatch={() => setIsViewerOpen(true)}
+              isWatching={isViewerOpen}
+            />
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-muted/5">
@@ -456,6 +515,15 @@ export function ChatPage() {
           <h2 className="text-xl font-semibold text-foreground mb-2">Team Chat</h2>
           <p className="max-w-sm text-center">Create a new group or join an existing one using an invite code from the sidebar.</p>
         </div>
+      )}
+
+      {/* Screen Share Viewer Overlay — rendered when a viewer clicks "Watch Screen" */}
+      {isViewerOpen && activeSession && profile && activeSession.sharer_id !== profile.id && (
+        <ScreenShareViewer
+          session={activeSession}
+          userId={profile.id}
+          onClose={() => setIsViewerOpen(false)}
+        />
       )}
     </div>
   );

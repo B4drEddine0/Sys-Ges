@@ -35,6 +35,9 @@ export default {
         xl: '0.9rem',
         '2xl': '1.25rem',
       },
+      animation: {
+        'pulse-slow': 'pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
     },
   },
   plugins: [require('@tailwindcss/typography')],
