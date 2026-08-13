@@ -84,6 +84,16 @@ export function App() {
           }
         />
         <Route
+          path="/chat/:chatId"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <ChatPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/system"
           element={
             <ProtectedRoute>
