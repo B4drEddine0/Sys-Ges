@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare, ShieldAlert, Braces } from 'lucide-react';
 import { Button, Input, Avatar } from './ui';
 import { NotificationsPopover } from './NotificationsPopover';
 import { useShell } from '@/providers/ShellProvider';
@@ -103,6 +103,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <>
               <button onClick={() => navigate(`/project/${projectId}`)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted">
                 <LayoutDashboard className="h-4 w-4" />Dashboard
+              </button>
+              <button onClick={() => navigate(`/project/${projectId}/api-tester`)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted">
+                <Braces className="h-4 w-4" />API Tester
               </button>
               {sections.length > 0
                 ? sections.map((section) => (

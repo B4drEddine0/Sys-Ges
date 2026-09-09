@@ -15,6 +15,7 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { SystemAdminPage } from '@/pages/SystemAdminPage';
+import { ApiTesterPage } from '@/pages/ApiTesterPage';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -67,6 +68,7 @@ export function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/project/:projectId/api-tester" element={<ProtectedRoute><AppShell><ApiTesterPage /></AppShell></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AppShell><ProfilePage /></AppShell></ProtectedRoute>} />
 
         {/* Old routes redirects */}
