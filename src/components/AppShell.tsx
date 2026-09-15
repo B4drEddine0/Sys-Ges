@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare, ShieldAlert, Braces } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, MoonStar, Search, SunMedium, LogOut, Settings, User, FolderKanban, MessageSquare, ShieldAlert, Braces, Gamepad2 } from 'lucide-react';
 import { Button, Input, Avatar } from './ui';
 import { NotificationsPopover } from './NotificationsPopover';
 import { useShell } from '@/providers/ShellProvider';
@@ -99,6 +99,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <ShieldAlert className="h-4 w-4" />System Admin
               </button>
             )}
+            <button onClick={() => navigate('/games')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-primary hover:bg-primary/10">
+              <Gamepad2 className="h-4 w-4" />Fun Zone
+            </button>
           {projectId && (
             <>
               <button onClick={() => navigate(`/project/${projectId}`)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted">

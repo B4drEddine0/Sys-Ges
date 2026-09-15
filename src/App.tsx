@@ -16,6 +16,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { SystemAdminPage } from '@/pages/SystemAdminPage';
 import { ApiTesterPage } from '@/pages/ApiTesterPage';
+import { GamesPage } from '@/pages/GamesPage';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -70,6 +71,9 @@ export function App() {
         />
         <Route path="/project/:projectId/api-tester" element={<ProtectedRoute><AppShell><ApiTesterPage /></AppShell></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AppShell><ProfilePage /></AppShell></ProtectedRoute>} />
+        
+        {/* Fun Zone */}
+        <Route path="/games" element={<ProtectedRoute><AppShell><GamesPage /></AppShell></ProtectedRoute>} />
 
         {/* Old routes redirects */}
         <Route path="/board/:sectionId" element={<ProtectedRoute><Navigate to="/projects" replace /></ProtectedRoute>} />
