@@ -52,7 +52,7 @@ export function GamesPage() {
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
       <header className="sticky top-0 z-10 flex h-16 items-center border-b border-border bg-background/80 px-6 backdrop-blur-sm gap-4">
         {inRoom ? (
-          <Button variant="ghost" size="icon" onClick={resetSelection}>
+          <Button variant="ghost" size="sm" className="p-2" onClick={resetSelection}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
         ) : null}
@@ -79,7 +79,7 @@ export function GamesPage() {
                     <p className="text-muted-foreground text-sm">The classic 3x3 game of X's and O's.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4 mt-auto">
-                    <Button onClick={() => startLocalGame('tictactoe')} variant="outline" className="flex flex-col h-24 gap-3 rounded-2xl">
+                    <Button onClick={() => startLocalGame('tictactoe')} variant="secondary" className="flex flex-col h-24 gap-3 rounded-2xl">
                       <Monitor className="h-6 w-6" /> Local Play
                     </Button>
                     <Button onClick={() => createOnlineRoom('tictactoe')} className="flex flex-col h-24 gap-3 rounded-2xl">
@@ -95,7 +95,7 @@ export function GamesPage() {
                     <p className="text-muted-foreground text-sm">Connect 4 discs horizontally, vertically, or diagonally.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4 mt-auto">
-                    <Button onClick={() => startLocalGame('connect4')} variant="outline" className="flex flex-col h-24 gap-3 rounded-2xl">
+                    <Button onClick={() => startLocalGame('connect4')} variant="secondary" className="flex flex-col h-24 gap-3 rounded-2xl">
                       <Monitor className="h-6 w-6" /> Local Play
                     </Button>
                     <Button onClick={() => createOnlineRoom('connect4')} className="flex flex-col h-24 gap-3 rounded-2xl">
@@ -337,7 +337,7 @@ function TicTacToe({ local, channel, isHost }: { local: boolean, channel?: any, 
           </button>
         ))}
       </div>
-      <Button variant="outline" className="mt-4 w-full h-12 text-lg" onClick={handleRestart}>
+      <Button variant="secondary" className="mt-4 w-full h-12 text-lg" onClick={handleRestart}>
         Restart Game
       </Button>
     </div>
@@ -488,7 +488,7 @@ function Connect4({ local, channel, isHost }: { local: boolean, channel?: any, i
         ))}
       </div>
       
-      <Button variant="outline" className="mt-4 w-full h-12 text-lg" onClick={handleRestart}>
+      <Button variant="secondary" className="mt-4 w-full h-12 text-lg" onClick={handleRestart}>
         Restart Game
       </Button>
     </div>
