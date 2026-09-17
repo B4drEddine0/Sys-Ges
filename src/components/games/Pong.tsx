@@ -47,7 +47,7 @@ export function Pong({ local, channel, isHost }: { local: boolean, channel?: any
   const [restartRequestedBy, setRestartRequestedBy] = useState<'host' | 'guest' | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
 
-  const reqRef = useRef<number>();
+  const reqRef = useRef<number>(0);
   const arenaRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const guestRef = useRef<HTMLDivElement>(null);
