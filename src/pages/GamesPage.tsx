@@ -6,8 +6,9 @@ import { TicTacToe } from '@/components/games/TicTacToe';
 import { Connect4 } from '@/components/games/Connect4';
 import { Checkers } from '@/components/games/Checkers';
 import { RedHands } from '@/components/games/RedHands';
+import { Pong } from '@/components/games/Pong';
 
-type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | null;
+type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | 'pong' | null;
 type GameMode = 'local' | 'online' | null;
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -65,7 +66,7 @@ export function GamesPage() {
       </header>
 
       <main className="flex-1 p-6 md:p-8 flex flex-col items-center">
-        <div className="w-full max-w-5xl">
+        <div className="w-full max-w-6xl">
           {!inRoom && (
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
               <div className="text-center space-y-4">
@@ -75,7 +76,23 @@ export function GamesPage() {
                 </p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                {/* Neon Pong Card */}
+                <div className="flex flex-col p-6 bg-zinc-950 border border-zinc-800 rounded-3xl gap-6 shadow-[0_0_20px_rgba(59,130,246,0.15)] hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:border-blue-500/50 transition-all">
+                  <div className="space-y-2 text-center">
+                    <h3 className="text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-rose-500">NEON PONG</h3>
+                    <p className="text-zinc-400 text-sm hidden md:block">Defend, speed up, and score!</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-auto">
+                    <Button onClick={() => startLocalGame('pong')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm bg-zinc-800 hover:bg-zinc-700 text-white">
+                      <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Local
+                    </Button>
+                    <Button onClick={() => createOnlineRoom('pong')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm bg-blue-600 hover:bg-blue-500 text-white">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Tic Tac Toe Card */}
                 <div className="flex flex-col p-6 bg-card border border-border rounded-3xl gap-6 hover:border-primary/50 transition-colors shadow-sm hover:shadow-lg">
                   <div className="space-y-2 text-center">
@@ -175,6 +192,7 @@ export function GamesPage() {
           {inRoom && gameMode === 'local' && selectedGame === 'connect4' && <Connect4 local />}
           {inRoom && gameMode === 'local' && selectedGame === 'checkers' && <Checkers local />}
           {inRoom && gameMode === 'local' && selectedGame === 'redhands' && <RedHands local />}
+          {inRoom && gameMode === 'local' && selectedGame === 'pong' && <Pong local />}
         </div>
       </main>
     </div>
@@ -268,6 +286,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected }
       {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'checkers' && <Checkers local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'redhands' && <RedHands local={false} channel={channel} isHost={isHost} />}
+      {initialGameType === 'pong' && <Pong local={false} channel={channel} isHost={isHost} />}
     </div>
   );
 }
