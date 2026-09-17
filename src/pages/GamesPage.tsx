@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Gamepad2, Users, Monitor, Copy, Check, ArrowLeft, Grid3X3 } from 'lucide-react';
+import { Gamepad2, Users, Monitor, Copy, Check, ArrowLeft } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { TicTacToe } from '@/components/games/TicTacToe';
 import { Connect4 } from '@/components/games/Connect4';
 import { Checkers } from '@/components/games/Checkers';
+import { RedHands } from '@/components/games/RedHands';
 
-type GameType = 'tictactoe' | 'connect4' | 'checkers' | null;
+type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | null;
 type GameMode = 'local' | 'online' | null;
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -74,19 +75,19 @@ export function GamesPage() {
                 </p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Tic Tac Toe Card */}
                 <div className="flex flex-col p-6 bg-card border border-border rounded-3xl gap-6 hover:border-primary/50 transition-colors shadow-sm hover:shadow-lg">
                   <div className="space-y-2 text-center">
                     <h3 className="text-2xl font-bold tracking-tight">Tic Tac Toe</h3>
-                    <p className="text-muted-foreground text-sm">The classic 3x3 game of X's and O's.</p>
+                    <p className="text-muted-foreground text-sm hidden md:block">The classic 3x3 game of X's and O's.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <Button onClick={() => startLocalGame('tictactoe')} variant="secondary" className="flex flex-col h-20 gap-2 rounded-2xl">
-                      <Monitor className="h-5 w-5" /> Local
+                    <Button onClick={() => startLocalGame('tictactoe')} variant="secondary" className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Local
                     </Button>
-                    <Button onClick={() => createOnlineRoom('tictactoe')} className="flex flex-col h-20 gap-2 rounded-2xl">
-                      <Users className="h-5 w-5" /> Room
+                    <Button onClick={() => createOnlineRoom('tictactoe')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
                     </Button>
                   </div>
                 </div>
@@ -95,14 +96,14 @@ export function GamesPage() {
                 <div className="flex flex-col p-6 bg-card border border-border rounded-3xl gap-6 hover:border-primary/50 transition-colors shadow-sm hover:shadow-lg">
                   <div className="space-y-2 text-center">
                     <h3 className="text-2xl font-bold tracking-tight">Connect 4</h3>
-                    <p className="text-muted-foreground text-sm">Connect 4 discs horizontally, vertically, or diagonally.</p>
+                    <p className="text-muted-foreground text-sm hidden md:block">Connect 4 discs horizontally, vertically, or diagonally.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <Button onClick={() => startLocalGame('connect4')} variant="secondary" className="flex flex-col h-20 gap-2 rounded-2xl">
-                      <Monitor className="h-5 w-5" /> Local
+                    <Button onClick={() => startLocalGame('connect4')} variant="secondary" className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Local
                     </Button>
-                    <Button onClick={() => createOnlineRoom('connect4')} className="flex flex-col h-20 gap-2 rounded-2xl">
-                      <Users className="h-5 w-5" /> Room
+                    <Button onClick={() => createOnlineRoom('connect4')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
                     </Button>
                   </div>
                 </div>
@@ -111,14 +112,30 @@ export function GamesPage() {
                 <div className="flex flex-col p-6 bg-card border border-border rounded-3xl gap-6 hover:border-primary/50 transition-colors shadow-sm hover:shadow-lg">
                   <div className="space-y-2 text-center">
                     <h3 className="text-2xl font-bold tracking-tight">Checkers</h3>
-                    <p className="text-muted-foreground text-sm">The classic game of Dama. Jump to win!</p>
+                    <p className="text-muted-foreground text-sm hidden md:block">The classic game of Dama. Jump to win!</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <Button onClick={() => startLocalGame('checkers')} variant="secondary" className="flex flex-col h-20 gap-2 rounded-2xl">
-                      <Monitor className="h-5 w-5" /> Local
+                    <Button onClick={() => startLocalGame('checkers')} variant="secondary" className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Local
                     </Button>
-                    <Button onClick={() => createOnlineRoom('checkers')} className="flex flex-col h-20 gap-2 rounded-2xl">
-                      <Users className="h-5 w-5" /> Room
+                    <Button onClick={() => createOnlineRoom('checkers')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Red Hands Card */}
+                <div className="flex flex-col p-6 bg-card border border-border rounded-3xl gap-6 hover:border-primary/50 transition-colors shadow-sm hover:shadow-lg">
+                  <div className="space-y-2 text-center">
+                    <h3 className="text-2xl font-bold tracking-tight">Red Hands</h3>
+                    <p className="text-muted-foreground text-sm hidden md:block">Test your reflexes! Slap or dodge fast.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-auto">
+                    <Button onClick={() => startLocalGame('redhands')} variant="secondary" className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Local
+                    </Button>
+                    <Button onClick={() => createOnlineRoom('redhands')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
                     </Button>
                   </div>
                 </div>
@@ -157,6 +174,7 @@ export function GamesPage() {
           {inRoom && gameMode === 'local' && selectedGame === 'tictactoe' && <TicTacToe local />}
           {inRoom && gameMode === 'local' && selectedGame === 'connect4' && <Connect4 local />}
           {inRoom && gameMode === 'local' && selectedGame === 'checkers' && <Checkers local />}
+          {inRoom && gameMode === 'local' && selectedGame === 'redhands' && <RedHands local />}
         </div>
       </main>
     </div>
@@ -249,6 +267,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected }
       {initialGameType === 'tictactoe' && <TicTacToe local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'checkers' && <Checkers local={false} channel={channel} isHost={isHost} />}
+      {initialGameType === 'redhands' && <RedHands local={false} channel={channel} isHost={isHost} />}
     </div>
   );
 }
