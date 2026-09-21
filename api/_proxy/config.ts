@@ -129,6 +129,29 @@ export function buildUpstreamHeaders(reqHeaders: Headers, browserUA: string | nu
   return out;
 }
 
+/**
+ * Same as buildUpstreamHeaders, but additionally forges Referer/Origin.
+ *
+ * This ONLY exists for api/embed.ts, and only because the operator explicitly chose to
+ * override this project's original "never spoof/forge headers, never bypass
+ * anti-hotlink/access-control checks" rule — specifically for third-party video-embed
+ * hosts and CDNs that refuse to serve content unless the Referer looks right. It is
+ * deliberately not used anywhere else in this codebase.
+ *
+ * `refererUrl` is the exact URL to forge as Referer (its origin becomes the Origin
+ * header). This is NOT always the original site (topcinema.io) — real browsers send
+ * the URL of whatever page/script actually issued the request, which for a nested
+ * resource (an m3u8 manifest referenced from within an embed page, say) is that embed
+ * page's own URL, not the original site's. Callers are responsible for chaining this
+ * correctly hop by hop — see api/embed.ts's `pageRef` handling.
+ */
+export function buildEmbedUpstreamHeaders(reqHeaders: Headers, browserUA: string | null, refererUrl: string): Headers {
+  const out = buildUpstreamHeaders(reqHeaders, browserUA);
+  out.set('referer', refererUrl);
+  out.set('origin', new URL(refererUrl).origin);
+  return out;
+}
+
 export function buildDownstreamHeaders(upstreamHeaders: Headers): Headers {
   const out = new Headers();
   for (const name of FORWARD_RESPONSE_HEADERS) {

@@ -40,6 +40,17 @@ function rewriteBody(body: string, upstreamOrigin: string, proxyBase: string): s
   return body.split(upstreamOrigin).join(proxyBase);
 }
 
+// Video players on sites like this are usually embedded from a separate third-party
+// host (a CDN/embed provider), not the configured upstream origin, so the same-origin
+// rewrite above never touches them. Route those through api/embed.ts instead, which
+// (per an explicit, deliberate exception for this project — see its module comment)
+// forges the Referer/Origin those hosts require to actually serve video.
+function rewriteIframeEmbeds(body: string, siteKey: string): string {
+  return body.replace(/(<iframe\b[^>]*\bsrc=)(["'])(https?:\/\/[^"']+)\2/gi, (_m, prefix, quote, src) => {
+    return `${prefix}${quote}/api/embed?ref=${siteKey}&u=${encodeURIComponent(src)}${quote}`;
+  });
+}
+
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
@@ -118,8 +129,10 @@ export default async function handler(req: Request): Promise<Response> {
   if (isRewritable) {
     const text = await upstreamResponse.text();
     const proxyBase = `${url.origin}/api/proxy/${siteKey}`;
-    const rewritten = rewriteBody(text, new URL(site.origin).origin, proxyBase);
+    const sameOriginRewritten = rewriteBody(text, new URL(site.origin).origin, proxyBase);
+    const rewritten = contentType.includes('text/html') ? rewriteIframeEmbeds(sameOriginRewritten, siteKey) : sameOriginRewritten;
     headers.set('content-type', contentType);
+    headers.delete('content-length');
     if (!headers.has('cache-control')) headers.set('cache-control', 'private, no-store');
     return new Response(rewritten, { status: upstreamResponse.status, headers });
   }
