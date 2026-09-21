@@ -44,15 +44,24 @@ export function CinemaPage() {
           return;
         }
 
-        const probe = await fetch(CINEMA_PROXY_PATH, { method: 'HEAD', cache: 'no-store' });
+        // GET, not HEAD — some upstream sites (this one included) behave inconsistently
+        // between the two methods (e.g. redirect logic that only applies to GET), and
+        // GET is what the iframe itself will actually issue.
+        const probe = await fetch(CINEMA_PROXY_PATH, { cache: 'no-store' });
         if (cancelled) return;
 
+        const reason = probe.headers.get('x-proxy-reason');
         if (probe.ok) {
           setStatus({ state: 'ready' });
         } else if (probe.status === 429) {
           setStatus({ state: 'error', message: 'Rate limited — wait a moment and reload.' });
+        } else if (reason && reason !== 'upstream') {
+          setStatus({ state: 'error', message: `Proxy rejected the request before reaching upstream (${reason}, HTTP ${probe.status}).` });
         } else {
-          setStatus({ state: 'error', message: `Upstream request failed (HTTP ${probe.status}).` });
+          setStatus({
+            state: 'error',
+            message: `The upstream site itself returned HTTP ${probe.status} for this request. This is not a proxy config issue — it may be a real 404, or the upstream's anti-bot/WAF blocking requests from this server's network (which this proxy won't attempt to circumvent).`,
+          });
         }
       } catch {
         if (!cancelled) setStatus({ state: 'error', message: 'Could not reach the proxy endpoint.' });

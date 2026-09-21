@@ -42,24 +42,24 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const match = url.pathname.match(/^\/api\/proxy\/([^/]+)\/?(.*)$/);
-  if (!match) return new Response('Not found', { status: 404 });
+  if (!match) return new Response('Not found', { status: 404, headers: { 'x-proxy-reason': 'bad-path' } });
 
   const [, siteKey, rest] = match;
   const site = findSite(siteKey);
   if (!site) {
     // Deliberately generic — never echo back what was requested.
-    return new Response('Not found', { status: 404 });
+    return new Response('Not found', { status: 404, headers: { 'x-proxy-reason': 'site-not-registered' } });
   }
 
   const clientKey = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'anonymous';
   if (!checkRateLimit(`${siteKey}:${clientKey}`)) {
-    return new Response('Too many requests', { status: 429 });
+    return new Response('Too many requests', { status: 429, headers: { 'x-proxy-reason': 'rate-limited' } });
   }
 
   const pathSegments = rest ? rest.split('/') : [];
   const safePath = sanitizePath(pathSegments);
   if (safePath === null) {
-    return new Response('Bad request', { status: 400 });
+    return new Response('Bad request', { status: 400, headers: { 'x-proxy-reason': 'bad-path-segment' } });
   }
 
   const upstreamUrl = new URL(safePath, site.origin.endsWith('/') ? site.origin : `${site.origin}/`);
@@ -74,7 +74,7 @@ export default async function handler(req: Request): Promise<Response> {
     });
   } catch {
     // No upstream detail in the error response or logs.
-    return new Response('Upstream unavailable', { status: 502 });
+    return new Response('Upstream unavailable', { status: 502, headers: { 'x-proxy-reason': 'fetch-failed' } });
   }
 
   // Upstream redirects are rewritten to stay inside the proxy rather than leaking the
@@ -85,15 +85,22 @@ export default async function handler(req: Request): Promise<Response> {
       const resolved = new URL(location, upstreamUrl);
       if (resolved.origin === new URL(site.origin).origin) {
         const proxied = `/api/proxy/${siteKey}/${resolved.pathname.replace(/^\//, '')}${resolved.search}`;
-        return Response.redirect(new URL(proxied, url.origin), upstreamResponse.status);
+        const redirectResponse = Response.redirect(new URL(proxied, url.origin), upstreamResponse.status);
+        redirectResponse.headers.set('x-proxy-reason', 'upstream-redirect');
+        return redirectResponse;
       }
     }
-    return new Response('Upstream redirect blocked', { status: 502 });
+    return new Response('Upstream redirect blocked', { status: 502, headers: { 'x-proxy-reason': 'redirect-off-origin' } });
   }
 
   const headers = buildDownstreamHeaders(upstreamResponse.headers);
   const contentType = upstreamResponse.headers.get('content-type') ?? '';
   const isRewritable = REWRITABLE_TYPES.some((t) => contentType.includes(t));
+  // Present on every response that actually reached the upstream (as opposed to one
+  // of this function's own early-exit responses above) — lets you tell "our function
+  // said 404" apart from "upstream said 404" just by reading response headers, without
+  // needing the Vercel function logs.
+  headers.set('x-proxy-reason', 'upstream');
 
   // Minimal logging: method + site + status only. Never the full path/query, never
   // headers or body.
