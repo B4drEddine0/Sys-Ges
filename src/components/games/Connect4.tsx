@@ -17,11 +17,14 @@ export function Connect4({
   channel,
   mySeat = 0,
   totalPlayers = 2,
+  playerNames,
 }: {
   local: boolean;
   channel?: any;
   mySeat?: number;
   totalPlayers?: 2 | 4;
+  /** Seat-indexed display names from the room's presence state (online mode only). */
+  playerNames?: string[];
 }) {
   // 4-player games get a noticeably bigger board so there's actually room to build
   // lines around three opponents instead of one.
@@ -34,6 +37,11 @@ export function Connect4({
   const [firstTurnIndex, setFirstTurnIndex] = useState(0);
   const [turnIndex, setTurnIndex] = useState(0);
   const [restartRequestedBy, setRestartRequestedBy] = useState<number | null>(null);
+  // Wins this session (i.e. for as long as this room/local game stays open) — resets
+  // only when the whole game component remounts (leaving the room, starting a new one).
+  const [scores, setScores] = useState<number[]>(() => Array(totalPlayers).fill(0));
+
+  const nameOf = (seat: number) => playerNames?.[seat]?.trim() || PLAYER_STYLES[seat].name;
 
   useEffect(() => {
     if (local || !channel) return;
@@ -84,6 +92,17 @@ export function Connect4({
   const winner = winData?.winner ?? null;
   const winningCells = winData?.winningCells || [];
   const isDraw = !winner && board.every((row) => row.every((cell) => cell !== null));
+
+  // Every client derives the winner from the same synced board, so each can safely
+  // tally its own copy of the scoreboard without a dedicated "score" message.
+  useEffect(() => {
+    if (winner === null) return;
+    setScores((prev) => {
+      const next = [...prev];
+      next[winner] = (next[winner] ?? 0) + 1;
+      return next;
+    });
+  }, [winner]);
 
   const handleColumnClick = (c: number) => {
     if (winner !== null || restartRequestedBy !== null) return;
@@ -148,13 +167,13 @@ export function Connect4({
 
   let status = '';
   if (winner !== null) {
-    status = `Winner: ${PLAYER_STYLES[winner].name}`;
+    status = `Winner: ${nameOf(winner)}`;
   } else if (isDraw) {
     status = 'Draw!';
   } else if (!local) {
-    status = mySeat === turnIndex ? 'Your turn!' : `${PLAYER_STYLES[turnIndex].name}'s turn...`;
+    status = mySeat === turnIndex ? 'Your turn!' : `${nameOf(turnIndex)}'s turn...`;
   } else {
-    status = `Next player: ${PLAYER_STYLES[turnIndex].name}`;
+    status = `Next player: ${nameOf(turnIndex)}`;
   }
 
   const youAre = !local ? PLAYER_STYLES[mySeat] : null;
@@ -173,9 +192,26 @@ export function Connect4({
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
             You are:
             <div className={`w-3 h-3 rounded-full ${youAre.dot}`} />
-            {youAre.name}
+            {nameOf(mySeat)}
           </div>
         )}
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-2">
+        {Array.from({ length: totalPlayers }, (_, seat) => (
+          <div
+            key={seat}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
+              winner === null && !isDraw && turnIndex === seat
+                ? 'border-primary bg-primary/10'
+                : 'border-border bg-muted/40'
+            }`}
+          >
+            <div className={`w-2.5 h-2.5 rounded-full ${PLAYER_STYLES[seat].dot}`} />
+            <span className="truncate max-w-[8rem]">{nameOf(seat)}</span>
+            <span className="text-muted-foreground">{scores[seat] ?? 0}</span>
+          </div>
+        ))}
       </div>
 
       <motion.div
@@ -226,7 +262,7 @@ export function Connect4({
             ) : (
               <div className="space-y-4">
                 <p className="font-semibold text-sm text-foreground">
-                  {PLAYER_STYLES[restartRequestedBy].name} wants to restart.
+                  {nameOf(restartRequestedBy)} wants to restart.
                 </p>
                 <div className="flex gap-2 justify-center">
                   <Button size="sm" onClick={acceptRestart} className="gap-1 bg-green-600 hover:bg-green-700 text-white"><Check className="h-4 w-4"/> Accept</Button>

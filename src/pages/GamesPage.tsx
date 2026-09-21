@@ -13,6 +13,8 @@ type GameMode = 'local' | 'online' | null;
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
+const NAME_STORAGE_KEY = 'sysges_player_name';
+
 export function GamesPage() {
   const [selectedGame, setSelectedGame] = useState<GameType>(null);
   const [gameMode, setGameMode] = useState<GameMode>(null);
@@ -22,6 +24,13 @@ export function GamesPage() {
   const [inRoom, setInRoom] = useState(false);
   const [localPlayerCount, setLocalPlayerCount] = useState<2 | 4>(2);
   const [roomMaxPlayers, setRoomMaxPlayers] = useState<2 | 4>(2);
+
+  // Just a browser-local nickname so other players in the same room see a name
+  // instead of only a color — never sent anywhere but the realtime channel itself.
+  const [playerName, setPlayerName] = useState(() => localStorage.getItem(NAME_STORAGE_KEY) ?? '');
+  useEffect(() => {
+    localStorage.setItem(NAME_STORAGE_KEY, playerName);
+  }, [playerName]);
 
   // Connect 4 needs to ask "2 or 4 players?" before starting, since it changes the
   // board size and the room's player slots. This tracks which action (local/room) is
@@ -92,8 +101,17 @@ export function GamesPage() {
                 <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto">
                   Play locally on the same device or challenge a teammate online!
                 </p>
+                <div className="max-w-xs mx-auto">
+                  <Input
+                    placeholder="Your name (shown in online rooms)"
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    className="text-center h-10 text-sm"
+                    maxLength={24}
+                  />
+                </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 {/* Neon Pong Card */}
                 <div className="flex flex-col p-6 bg-zinc-950 border border-zinc-800 rounded-3xl gap-6 shadow-[0_0_20px_rgba(59,130,246,0.15)] hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:border-blue-500/50 transition-all">
@@ -204,6 +222,7 @@ export function GamesPage() {
               initialGameType={selectedGame}
               onGameSelected={setSelectedGame}
               maxPlayers={isHost ? roomMaxPlayers : undefined}
+              playerName={playerName}
             />
           )}
 
@@ -239,13 +258,15 @@ export function GamesPage() {
 // players Connect 4 was set up for. Every other game is always exactly 2, so it's left
 // undefined for them and everything behaves exactly as before. Guests don't know the
 // room's player count until the host's presence broadcasts it / the game starts.
-function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, maxPlayers }: { roomCode: string, isHost: boolean, initialGameType: GameType, onGameSelected: (g: GameType) => void, maxPlayers?: 2 | 4 }) {
+function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, maxPlayers, playerName }: { roomCode: string, isHost: boolean, initialGameType: GameType, onGameSelected: (g: GameType) => void, maxPlayers?: 2 | 4, playerName?: string }) {
   const [copied, setCopied] = useState(false);
   const [opponentJoined, setOpponentJoined] = useState(false);
   const [channel, setChannel] = useState<any>(null);
   const [roomSize, setRoomSize] = useState(1);
   const [roomTarget, setRoomTarget] = useState<2 | 4>(maxPlayers ?? 2);
   const [mySeat, setMySeat] = useState(isHost ? 0 : 1);
+  const [playerNames, setPlayerNames] = useState<string[]>([]);
+  const myName = playerName?.trim() || 'Player';
 
   const effectiveMax = maxPlayers ?? 2;
   // A stable per-tab identity so up to 4 guests can each have their own presence slot
@@ -274,10 +295,11 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
       if (announcedMax === 2 || announcedMax === 4) setRoomTarget(announcedMax);
 
       const sorted = entries
-        .map(([key, metas]) => ({ key, joinedAt: metas?.[0]?.joined_at ?? key }))
+        .map(([key, metas]) => ({ key, joinedAt: metas?.[0]?.joined_at ?? key, name: metas?.[0]?.name }))
         .sort((a, b) => (a.joinedAt < b.joinedAt ? -1 : a.joinedAt > b.joinedAt ? 1 : a.key.localeCompare(b.key)));
       const seat = sorted.findIndex((e) => e.key === presenceKey);
       if (seat >= 0) setMySeat(seat);
+      setPlayerNames(sorted.map((e) => (typeof e.name === 'string' && e.name.trim() ? e.name.trim() : 'Player')));
 
       if (isHost && entries.length >= effectiveMax) {
         setOpponentJoined(true);
@@ -297,6 +319,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
       if (status === 'SUBSCRIBED') {
         await ch.track({
           joined_at: new Date().toISOString(),
+          name: myName,
           ...(isHost ? { maxPlayers: effectiveMax } : {}),
         });
       }
@@ -305,7 +328,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
     return () => {
       ch.unsubscribe();
     };
-  }, [roomCode, isHost, initialGameType, onGameSelected, presenceKey, effectiveMax]);
+  }, [roomCode, isHost, initialGameType, onGameSelected, presenceKey, effectiveMax, myName]);
 
   const copyCode = () => {
     navigator.clipboard.writeText(roomCode);
@@ -332,6 +355,15 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
             {copied ? <><Check className="h-5 w-5 mr-2" /> Copied</> : <><Copy className="h-5 w-5 mr-2" /> Copy Code</>}
           </Button>
         </div>
+        {playerNames.length > 0 && (
+          <div className="flex flex-wrap gap-2 justify-center max-w-sm">
+            {playerNames.map((name, i) => (
+              <span key={i} className="text-xs font-semibold px-3 py-1 rounded-full bg-muted text-muted-foreground">
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -350,7 +382,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
         {roomTarget > 2 ? 'All Players Connected' : 'Opponent Connected'}
       </div>
       {initialGameType === 'tictactoe' && <TicTacToe local={false} channel={channel} isHost={isHost} />}
-      {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} mySeat={mySeat} totalPlayers={roomTarget} />}
+      {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} mySeat={mySeat} totalPlayers={roomTarget} playerNames={playerNames} />}
       {initialGameType === 'checkers' && <Checkers local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'redhands' && <RedHands local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'pong' && <Pong local={false} channel={channel} isHost={isHost} />}
