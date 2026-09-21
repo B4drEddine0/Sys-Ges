@@ -1,5 +1,12 @@
 // Reverse proxy: Browser -> this Edge Function (HTTPS) -> allow-listed upstream origin.
 //
+// This is a flat, non-dynamic file reached via an explicit rewrite in vercel.json
+// (/api/proxy/:path* -> /api/proxy-handler) rather than Vercel's bracket-folder dynamic
+// routing (api/proxy/[site]/[[...path]].ts), which turned out not to be picked up
+// reliably for this project — requests 404'd at the platform level before this code
+// ever ran. The site key + rest-of-path are parsed from the URL manually below, same
+// as before.
+//
 // Deliberately does NOT:
 //  - accept an arbitrary host from the client (SSRF-safe: origin comes only from
 //    PROXY_SITES, resolved server-side)
@@ -9,8 +16,7 @@
 //  - spoof/alter identifying headers — the real User-Agent is relayed as-is
 //  - attempt to defeat upstream auth, CAPTCHA, rate limiting or anti-bot checks
 //
-// See api/_proxy/config.ts for the shared allowlist/header/rate-limit logic, and the
-// project README section on the private cinema proxy for the legal/ToS caveats.
+// See api/_proxy/config.ts for the shared allowlist/header/rate-limit logic.
 
 import {
   findSite,
@@ -18,7 +24,7 @@ import {
   buildUpstreamHeaders,
   buildDownstreamHeaders,
   checkRateLimit,
-} from '../../_proxy/config';
+} from './_proxy/config';
 
 export const config = { runtime: 'edge' };
 
