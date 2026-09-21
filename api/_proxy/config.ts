@@ -17,22 +17,51 @@ export type ProxySite = {
   label: string;
 };
 
+// Non-secret parsing diagnostics — never includes an origin URL, only counts and
+// rejection reasons, so it's safe to surface on an unauthenticated health endpoint.
+export type ProxyDiagnostics = {
+  envVarPresent: boolean;
+  rawEntryCount: number;
+  rejected: { entry: string; reason: string }[];
+};
+
+const diagnostics: ProxyDiagnostics = { envVarPresent: false, rawEntryCount: 0, rejected: [] };
+export function getProxyDiagnostics(): ProxyDiagnostics {
+  return diagnostics;
+}
+
+function redactEntry(entry: string): string {
+  // Keep the key (if any) visible for debugging, redact everything after the first "=".
+  const eq = entry.indexOf('=');
+  if (eq === -1) return `"${entry}" (no "=" found)`;
+  return `"${entry.slice(0, eq)}=<redacted>"`;
+}
+
 function readSites(): ProxySite[] {
   // PROXY_SITES="cinema=https://topcinema.io;example=https://example.com"
   // Each entry MUST be "key=origin" — a bare URL with no key (e.g. just
   // "https://topcinema.io/") is invalid and gets dropped, since the key is what
   // shows up in the proxied path (/api/proxy/<key>/...).
-  const raw = process.env.PROXY_SITES?.trim();
+  const rawValue = process.env.PROXY_SITES;
+  diagnostics.envVarPresent = typeof rawValue === 'string' && rawValue.trim().length > 0;
+
+  const raw = rawValue?.trim();
   if (!raw) return [];
 
-  return raw
-    .split(';')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
+  const rawEntries = raw.split(';').map((entry) => entry.trim()).filter(Boolean);
+  diagnostics.rawEntryCount = rawEntries.length;
+
+  return rawEntries
     .map((entry) => {
-      const [key, origin] = entry.split('=').map((part) => part.trim());
+      const eqIndex = entry.indexOf('=');
+      if (eqIndex === -1) {
+        diagnostics.rejected.push({ entry: redactEntry(entry), reason: 'missing "=" — format is "key=https://origin"' });
+        return { key: '', origin: '', label: '' };
+      }
+      const key = entry.slice(0, eqIndex).trim();
+      const origin = entry.slice(eqIndex + 1).trim();
       if (!key || !origin) {
-        console.warn(`[proxy] ignoring malformed PROXY_SITES entry (expected "key=origin"): "${entry}"`);
+        diagnostics.rejected.push({ entry: redactEntry(entry), reason: 'empty key or origin' });
         return { key: '', origin: '', label: '' };
       }
       return { key, origin, label: key };
@@ -41,13 +70,17 @@ function readSites(): ProxySite[] {
       if (!site.key || !site.origin) return false;
       try {
         const url = new URL(site.origin);
-        if (url.protocol !== 'https:' || url.pathname !== '/') {
-          console.warn(`[proxy] ignoring PROXY_SITES entry for "${site.key}": origin must be a bare https:// URL`);
+        if (url.protocol !== 'https:') {
+          diagnostics.rejected.push({ entry: `"${site.key}=<redacted>"`, reason: `origin must start with "https://" (got "${url.protocol}//")` });
+          return false;
+        }
+        if (url.pathname !== '/' || url.search || url.hash) {
+          diagnostics.rejected.push({ entry: `"${site.key}=<redacted>"`, reason: 'origin must be a bare domain with no path/query/hash, e.g. "https://topcinema.io"' });
           return false;
         }
         return true;
       } catch {
-        console.warn(`[proxy] ignoring PROXY_SITES entry for "${site.key}": not a valid URL`);
+        diagnostics.rejected.push({ entry: `"${site.key}=<redacted>"`, reason: 'not a valid URL' });
         return false;
       }
     });

@@ -19,13 +19,27 @@ export function CinemaPage() {
     (async () => {
       try {
         const health = await fetch('/api/proxy/health', { cache: 'no-store' });
-        const data = await health.json().catch(() => ({ configuredSites: [] as string[] }));
+        const data = await health.json().catch(() => ({ configuredSites: [] as string[], diagnostics: null }));
         if (cancelled) return;
 
         if (!data.configuredSites?.includes(SITE_KEY)) {
+          const diag = data.diagnostics as
+            | { envVarPresent: boolean; rawEntryCount: number; rejected: { entry: string; reason: string }[] }
+            | null
+            | undefined;
+
+          let reason: string;
+          if (!diag || !diag.envVarPresent) {
+            reason = 'The PROXY_SITES env var is not set (or empty) for this deployment/environment — set it and redeploy.';
+          } else if (diag.rejected.length > 0) {
+            reason = `PROXY_SITES is set but every entry was rejected: ${diag.rejected.map((r) => `${r.entry} — ${r.reason}`).join('; ')}`;
+          } else {
+            reason = `PROXY_SITES is set with ${diag.rawEntryCount} entr${diag.rawEntryCount === 1 ? 'y' : 'ies'}, but none used the key "${SITE_KEY}".`;
+          }
+
           setStatus({
             state: 'error',
-            message: `No proxy site is registered for "${SITE_KEY}". Check the PROXY_SITES env var on the server — it must be formatted as "${SITE_KEY}=https://your-upstream-domain" (a bare URL with no key is ignored), then redeploy.`,
+            message: `No proxy site is registered for "${SITE_KEY}". ${reason} Expected format: "${SITE_KEY}=https://your-upstream-domain".`,
           });
           return;
         }
