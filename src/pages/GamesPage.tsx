@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Gamepad2, Users, Monitor, Copy, Check, ArrowLeft } from 'lucide-react';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, Modal } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { TicTacToe } from '@/components/games/TicTacToe';
 import { Connect4 } from '@/components/games/Connect4';
@@ -20,6 +20,13 @@ export function GamesPage() {
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [inRoom, setInRoom] = useState(false);
+  const [localPlayerCount, setLocalPlayerCount] = useState<2 | 4>(2);
+  const [roomMaxPlayers, setRoomMaxPlayers] = useState<2 | 4>(2);
+
+  // Connect 4 needs to ask "2 or 4 players?" before starting, since it changes the
+  // board size and the room's player slots. This tracks which action (local/room) is
+  // pending that choice.
+  const [connect4CountPrompt, setConnect4CountPrompt] = useState<'local' | 'online' | null>(null);
 
   const resetSelection = () => {
     setSelectedGame(null);
@@ -28,15 +35,19 @@ export function GamesPage() {
     setJoinCodeInput('');
     setInRoom(false);
     setIsHost(false);
+    setLocalPlayerCount(2);
+    setRoomMaxPlayers(2);
   };
 
-  const startLocalGame = (game: GameType) => {
+  const startLocalGame = (game: GameType, playerCount: 2 | 4 = 2) => {
+    setLocalPlayerCount(playerCount);
     setSelectedGame(game);
     setGameMode('local');
     setInRoom(true);
   };
 
-  const createOnlineRoom = (game: GameType) => {
+  const createOnlineRoom = (game: GameType, maxPlayers: 2 | 4 = 2) => {
+    setRoomMaxPlayers(maxPlayers);
     setSelectedGame(game);
     setGameMode('online');
     setIsHost(true);
@@ -51,6 +62,13 @@ export function GamesPage() {
     setIsHost(false);
     setRoomCode(joinCodeInput.trim().toUpperCase());
     setInRoom(true);
+  };
+
+  const chooseConnect4PlayerCount = (count: 2 | 4) => {
+    const action = connect4CountPrompt;
+    setConnect4CountPrompt(null);
+    if (action === 'local') startLocalGame('connect4', count);
+    if (action === 'online') createOnlineRoom('connect4', count);
   };
 
   return (
@@ -113,13 +131,13 @@ export function GamesPage() {
                 <div className="flex flex-col p-6 bg-card border border-border rounded-3xl gap-6 hover:border-primary/50 transition-colors shadow-sm hover:shadow-lg">
                   <div className="space-y-2 text-center">
                     <h3 className="text-2xl font-bold tracking-tight">Connect 4</h3>
-                    <p className="text-muted-foreground text-sm hidden md:block">Connect 4 discs horizontally, vertically, or diagonally.</p>
+                    <p className="text-muted-foreground text-sm hidden md:block">Now supports 2 or 4 players, with a bigger board for 4.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <Button onClick={() => startLocalGame('connect4')} variant="secondary" className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                    <Button onClick={() => setConnect4CountPrompt('local')} variant="secondary" className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
                       <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Local
                     </Button>
-                    <Button onClick={() => createOnlineRoom('connect4')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
+                    <Button onClick={() => setConnect4CountPrompt('online')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm">
                       <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
                     </Button>
                   </div>
@@ -166,10 +184,10 @@ export function GamesPage() {
                   <p className="text-sm text-muted-foreground">Join a teammate's game instantly.</p>
                 </div>
                 <form onSubmit={joinOnlineRoom} className="flex gap-2">
-                  <Input 
-                    placeholder="Enter 6-letter code" 
-                    value={joinCodeInput} 
-                    onChange={e => setJoinCodeInput(e.target.value)} 
+                  <Input
+                    placeholder="Enter 6-letter code"
+                    value={joinCodeInput}
+                    onChange={e => setJoinCodeInput(e.target.value)}
                     className="uppercase text-center font-mono tracking-widest text-lg h-12"
                     maxLength={6}
                   />
@@ -180,36 +198,65 @@ export function GamesPage() {
           )}
 
           {inRoom && gameMode === 'online' && (
-            <OnlineGameWrapper 
-              roomCode={roomCode} 
-              isHost={isHost} 
+            <OnlineGameWrapper
+              roomCode={roomCode}
+              isHost={isHost}
               initialGameType={selectedGame}
               onGameSelected={setSelectedGame}
+              maxPlayers={isHost ? roomMaxPlayers : undefined}
             />
           )}
 
           {inRoom && gameMode === 'local' && selectedGame === 'tictactoe' && <TicTacToe local />}
-          {inRoom && gameMode === 'local' && selectedGame === 'connect4' && <Connect4 local />}
+          {inRoom && gameMode === 'local' && selectedGame === 'connect4' && <Connect4 local totalPlayers={localPlayerCount} />}
           {inRoom && gameMode === 'local' && selectedGame === 'checkers' && <Checkers local />}
           {inRoom && gameMode === 'local' && selectedGame === 'redhands' && <RedHands local />}
           {inRoom && gameMode === 'local' && selectedGame === 'pong' && <Pong local />}
         </div>
+
+        <Modal
+          open={connect4CountPrompt !== null}
+          title="Connect 4"
+          description="How many players?"
+          onClose={() => setConnect4CountPrompt(null)}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="secondary" className="h-16 rounded-2xl" onClick={() => chooseConnect4PlayerCount(2)}>
+              2 Players
+            </Button>
+            <Button className="h-16 rounded-2xl" onClick={() => chooseConnect4PlayerCount(4)}>
+              4 Players
+            </Button>
+          </div>
+        </Modal>
       </main>
     </div>
   );
 }
 
 // --- Multiplayer Wrapper ---
-function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected }: { roomCode: string, isHost: boolean, initialGameType: GameType, onGameSelected: (g: GameType) => void }) {
+// `maxPlayers` is only meaningful (and only known upfront) for the host — it's how many
+// players Connect 4 was set up for. Every other game is always exactly 2, so it's left
+// undefined for them and everything behaves exactly as before. Guests don't know the
+// room's player count until the host's presence broadcasts it / the game starts.
+function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, maxPlayers }: { roomCode: string, isHost: boolean, initialGameType: GameType, onGameSelected: (g: GameType) => void, maxPlayers?: 2 | 4 }) {
   const [copied, setCopied] = useState(false);
   const [opponentJoined, setOpponentJoined] = useState(false);
   const [channel, setChannel] = useState<any>(null);
-  
+  const [roomSize, setRoomSize] = useState(1);
+  const [roomTarget, setRoomTarget] = useState<2 | 4>(maxPlayers ?? 2);
+  const [mySeat, setMySeat] = useState(isHost ? 0 : 1);
+
+  const effectiveMax = maxPlayers ?? 2;
+  // A stable per-tab identity so up to 4 guests can each have their own presence slot
+  // (the old 'host'/'guest' pair only ever supported exactly one guest).
+  const [presenceKey] = useState(() => (isHost ? 'host' : `guest-${Math.random().toString(36).slice(2, 8)}`));
+
   useEffect(() => {
     const ch = supabase.channel(`game:${roomCode}`, {
       config: {
         broadcast: { ack: false },
-        presence: { key: isHost ? 'host' : 'guest' }
+        presence: { key: presenceKey }
       },
     });
 
@@ -217,30 +264,48 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected }
 
     ch.on('presence', { event: 'sync' }, () => {
       const state = ch.presenceState();
-      if (Object.keys(state).length >= 2) {
+      const entries = Object.entries(state) as [string, any[]][];
+      setRoomSize(entries.length);
+
+      // The host's own presence payload carries the intended room size, so guests can
+      // see "2 of 4 players" progress before the room is actually full.
+      const hostEntry = entries.find(([key]) => key === 'host');
+      const announcedMax = hostEntry?.[1]?.[0]?.maxPlayers;
+      if (announcedMax === 2 || announcedMax === 4) setRoomTarget(announcedMax);
+
+      const sorted = entries
+        .map(([key, metas]) => ({ key, joinedAt: metas?.[0]?.joined_at ?? key }))
+        .sort((a, b) => (a.joinedAt < b.joinedAt ? -1 : a.joinedAt > b.joinedAt ? 1 : a.key.localeCompare(b.key)));
+      const seat = sorted.findIndex((e) => e.key === presenceKey);
+      if (seat >= 0) setMySeat(seat);
+
+      if (isHost && entries.length >= effectiveMax) {
         setOpponentJoined(true);
-        if (isHost && initialGameType) {
-          ch.send({ type: 'broadcast', event: 'game_init', payload: { gameType: initialGameType } });
+        if (initialGameType) {
+          ch.send({ type: 'broadcast', event: 'game_init', payload: { gameType: initialGameType, maxPlayers: effectiveMax } });
         }
-      } else {
-        setOpponentJoined(false);
       }
     })
     .on('broadcast', { event: 'game_init' }, (payload) => {
-      if (!isHost && payload.payload.gameType) {
-        onGameSelected(payload.payload.gameType as GameType);
+      if (!isHost) {
+        if (payload.payload.gameType) onGameSelected(payload.payload.gameType as GameType);
+        if (payload.payload.maxPlayers === 2 || payload.payload.maxPlayers === 4) setRoomTarget(payload.payload.maxPlayers);
+        setOpponentJoined(true);
       }
     })
     .subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        await ch.track({ joined_at: new Date().toISOString() });
+        await ch.track({
+          joined_at: new Date().toISOString(),
+          ...(isHost ? { maxPlayers: effectiveMax } : {}),
+        });
       }
     });
 
     return () => {
       ch.unsubscribe();
     };
-  }, [roomCode, isHost, initialGameType, onGameSelected]);
+  }, [roomCode, isHost, initialGameType, onGameSelected, presenceKey, effectiveMax]);
 
   const copyCode = () => {
     navigator.clipboard.writeText(roomCode);
@@ -256,8 +321,10 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected }
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary relative z-10" />
         </div>
         <div>
-          <h2 className="text-3xl font-bold mb-2">Waiting for opponent...</h2>
-          <p className="text-muted-foreground text-lg">Share this code with your teammate so they can join!</p>
+          <h2 className="text-3xl font-bold mb-2">
+            {roomTarget > 2 ? `Waiting for players... (${roomSize}/${roomTarget})` : 'Waiting for opponent...'}
+          </h2>
+          <p className="text-muted-foreground text-lg">Share this code with your teammate{roomTarget > 2 ? 's' : ''} so they can join!</p>
         </div>
         <div className="p-2 pl-6 bg-muted/50 border rounded-2xl flex items-center gap-4">
           <span className="text-3xl font-mono tracking-[0.3em] font-bold text-primary">{roomCode}</span>
@@ -280,10 +347,10 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected }
     <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4">
       <div className="mb-6 px-4 py-1.5 bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/30 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm">
         <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-        Opponent Connected
+        {roomTarget > 2 ? 'All Players Connected' : 'Opponent Connected'}
       </div>
       {initialGameType === 'tictactoe' && <TicTacToe local={false} channel={channel} isHost={isHost} />}
-      {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} isHost={isHost} />}
+      {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} mySeat={mySeat} totalPlayers={roomTarget} />}
       {initialGameType === 'checkers' && <Checkers local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'redhands' && <RedHands local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'pong' && <Pong local={false} channel={channel} isHost={isHost} />}

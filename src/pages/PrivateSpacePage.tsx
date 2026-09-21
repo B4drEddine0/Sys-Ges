@@ -27,7 +27,7 @@ export function PrivateSpacePage() {
       <main className="flex-1 p-6 md:p-8 flex flex-col items-center">
         <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 py-8">
           <button
-            onClick={() => navigate('/private/games')}
+            onClick={() => navigate('/private/mystery')}
             className="flex flex-col items-start gap-4 p-8 bg-card border border-border rounded-3xl text-left hover:border-primary/50 hover:shadow-lg transition-all"
           >
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">

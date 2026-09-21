@@ -89,7 +89,7 @@ export function App() {
           }
         />
         <Route
-          path="/private/games"
+          path="/private/mystery"
           element={
             <ProtectedRoute>
               <AppShell>
@@ -112,7 +112,7 @@ export function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/games" element={<ProtectedRoute><Navigate to="/private/games" replace /></ProtectedRoute>} />
+        <Route path="/games" element={<ProtectedRoute><Navigate to="/private/mystery" replace /></ProtectedRoute>} />
 
         {/* Old routes redirects */}
         <Route path="/board/:sectionId" element={<ProtectedRoute><Navigate to="/projects" replace /></ProtectedRoute>} />
