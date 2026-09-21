@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://topcinema.io/" },
+        { "header": "Origin", "operation": "set", "value": "https://topcinema.io" }
+      ]
+    },
+    "condition": {
+      "requestDomains": ["down.vidtube.one", "vidtube.cam"],
+      "resourceTypes": ["sub_frame", "script", "image", "xmlhttprequest", "media", "stylesheet"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://down.vidtube.one/" },
+        { "header": "Origin", "operation": "set", "value": "https://down.vidtube.one" }
+      ]
+    },
+    "condition": {
+      "requestDomains": ["cdn-video.xyz"],
+      "resourceTypes": ["xmlhttprequest", "media", "image"]
+    }
+  }
+]

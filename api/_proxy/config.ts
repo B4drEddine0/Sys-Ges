@@ -94,6 +94,28 @@ export function findSite(key: string): ProxySite | undefined {
   return PROXY_SITES.find((s) => s.key === key);
 }
 
+// When set, points the browser's *first* embed hop at a relay running on the
+// operator's own network (relay/server.ts) instead of this Vercel deployment's own
+// /api/embed — specifically for video providers that block requests from cloud/
+// datacenter IP ranges. Must match RELAY_SHARED_SECRET configured on the relay itself.
+// No trailing slash, e.g. "https://cinema-relay.example.com".
+export const HOME_RELAY_URL = process.env.HOME_RELAY_URL?.trim().replace(/\/$/, '') || null;
+export const RELAY_SHARED_SECRET = process.env.RELAY_SHARED_SECRET?.trim() || null;
+
+// Domains (and their subdomains) for a video-embed provider whose Referer requirement
+// a companion browser extension (see extension/) fixes client-side via
+// declarativeNetRequest. For these, proxy-handler.ts leaves the iframe pointed at the
+// real upstream URL instead of routing it through the embed relay: a viewer with the
+// extension installed gets a normal direct browser request (their own real IP, header
+// fixed by the extension); a viewer without it just sees the same failure the raw site
+// would show anyone without special handling. Only add a host here once its Referer
+// requirements have actually been verified — see extension/rules.json.
+export const EXTENSION_HANDLED_HOSTS = ['down.vidtube.one'];
+
+export function isExtensionHandledHost(hostname: string): boolean {
+  return EXTENSION_HANDLED_HOSTS.some((h) => hostname === h || hostname.endsWith(`.${h}`));
+}
+
 // Headers we allow through to the upstream. Everything else (auth, our own cookies,
 // Vercel/CF internal headers, etc.) is dropped rather than blindly forwarded.
 export const FORWARD_REQUEST_HEADERS = [

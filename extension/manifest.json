@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Cinema Referer Fix",
+  "version": "1.0.0",
+  "description": "Rewrites the Referer/Origin header for one specific video-embed provider so its player works over your own connection.",
+  "permissions": ["declarativeNetRequest"],
+  "host_permissions": [
+    "https://down.vidtube.one/*",
+    "https://vidtube.cam/*",
+    "https://*.cdn-video.xyz/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
+}

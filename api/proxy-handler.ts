@@ -24,6 +24,9 @@ import {
   buildUpstreamHeaders,
   buildDownstreamHeaders,
   checkRateLimit,
+  HOME_RELAY_URL,
+  RELAY_SHARED_SECRET,
+  isExtensionHandledHost,
 } from './_proxy/config';
 
 export const config = { runtime: 'edge' };
@@ -42,12 +45,34 @@ function rewriteBody(body: string, upstreamOrigin: string, proxyBase: string): s
 
 // Video players on sites like this are usually embedded from a separate third-party
 // host (a CDN/embed provider), not the configured upstream origin, so the same-origin
-// rewrite above never touches them. Route those through api/embed.ts instead, which
-// (per an explicit, deliberate exception for this project — see its module comment)
+// rewrite above never touches them. Route those through the embed relay instead, which
+// (per an explicit, deliberate exception for this project — see api/_proxy/embedCore.ts)
 // forges the Referer/Origin those hosts require to actually serve video.
+//
+// Normally that's api/embed.ts on this same Vercel deployment. But some providers also
+// block requests from cloud/datacenter IPs outright (a separate anti-bot layer, found
+// by testing) — for those, HOME_RELAY_URL points browsers at a relay on the operator's
+// own network instead, so the *first* embed fetch comes from a real home connection.
+// Every hop after that stays on whichever base the first link pointed at (the relay's
+// own generated links are relative to itself), so only this one call site needs to
+// choose between the two.
+//
+// A third option, for hosts in EXTENSION_HANDLED_HOSTS: leave the iframe pointing at
+// the real upstream URL untouched. A viewer with the companion browser extension
+// installed (see extension/) gets a normal direct browser request — their own real
+// device's IP, with Referer fixed client-side via declarativeNetRequest — which sidesteps
+// both the Referer check and the cloud-IP block at once, no relay needed. A viewer
+// without the extension just gets whatever the raw site would show them anyway.
 function rewriteIframeEmbeds(body: string, siteKey: string): string {
+  const base = HOME_RELAY_URL ? `${HOME_RELAY_URL}/embed` : '/api/embed';
+  const key = HOME_RELAY_URL && RELAY_SHARED_SECRET ? `&k=${encodeURIComponent(RELAY_SHARED_SECRET)}` : '';
   return body.replace(/(<iframe\b[^>]*\bsrc=)(["'])(https?:\/\/[^"']+)\2/gi, (_m, prefix, quote, src) => {
-    return `${prefix}${quote}/api/embed?ref=${siteKey}&u=${encodeURIComponent(src)}${quote}`;
+    try {
+      if (isExtensionHandledHost(new URL(src).hostname)) return `${prefix}${quote}${src}${quote}`;
+    } catch {
+      // fall through to the relay rewrite below
+    }
+    return `${prefix}${quote}${base}?ref=${siteKey}&u=${encodeURIComponent(src)}${key}${quote}`;
   });
 }
 
