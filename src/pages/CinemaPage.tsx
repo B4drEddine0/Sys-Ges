@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clapperboard, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Clapperboard, AlertTriangle, RotateCw } from 'lucide-react';
 
 const SITE_KEY = 'cinema';
 // Same-origin path only — the browser never navigates to the upstream host directly,
@@ -12,6 +12,24 @@ type Status = { state: 'checking' } | { state: 'ready' } | { state: 'error'; mes
 export function CinemaPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>({ state: 'checking' });
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Bumping this forces the iframe to remount at the base URL — the fallback for when
+  // an in-page reload isn't possible (e.g. something navigated the frame off-origin).
+  const [resetKey, setResetKey] = useState(0);
+
+  // The episode/server picker on these sites is often JS-driven (fetches a player via
+  // AJAX rather than a real page navigation), so it never goes through our HTML
+  // rewriting and can just hang. Reloading the frame's current document — not
+  // navigating back to the start — retries whatever page it's actually stuck on.
+  const refreshFrame = () => {
+    try {
+      iframeRef.current?.contentWindow?.location.reload();
+    } catch {
+      // Cross-origin (frame navigated somewhere outside our proxy) — the only way
+      // back is to remount at the known-good base path.
+      setResetKey((k) => k + 1);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +101,16 @@ export function CinemaPage() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <Clapperboard className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-semibold tracking-tight">Cinema</h2>
+        <h2 className="text-lg font-semibold tracking-tight flex-1">Cinema</h2>
+        {status.state === 'ready' && (
+          <button
+            onClick={refreshFrame}
+            title="Reload the player if it gets stuck after picking an episode/server"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-muted"
+          >
+            <RotateCw className="h-4 w-4" /> Refresh
+          </button>
+        )}
       </header>
 
       <div className="flex items-start gap-3 px-6 py-3 bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs shrink-0">
@@ -93,6 +120,7 @@ export function CinemaPage() {
           Some pages may fail to display here if the upstream site blocks being framed
           (CSP <code className="font-mono">frame-ancestors</code> / <code className="font-mono">X-Frame-Options</code>),
           and video players hosted on separate third-party domains won't be proxied.
+          If picking an episode or server leaves it stuck, use the Refresh button above.
         </p>
       </div>
 
@@ -114,6 +142,8 @@ export function CinemaPage() {
 
       {status.state === 'ready' && (
         <iframe
+          key={resetKey}
+          ref={iframeRef}
           title="Cinema"
           src={CINEMA_PROXY_PATH}
           className="flex-1 w-full border-0"

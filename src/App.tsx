@@ -101,7 +101,7 @@ export function App() {
           }
         />
         <Route
-          path="/private/cinema"
+          path="/private/mystery1"
           element={
             <ProtectedRoute>
               <AppShell>

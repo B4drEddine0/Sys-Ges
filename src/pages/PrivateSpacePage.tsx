@@ -40,7 +40,7 @@ export function PrivateSpacePage() {
           </button>
 
           <button
-            onClick={() => navigate('/private/cinema')}
+            onClick={() => navigate('/private/mystery1')}
             className="flex flex-col items-start gap-4 p-8 bg-card border border-border rounded-3xl text-left hover:border-primary/50 hover:shadow-lg transition-all"
           >
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
