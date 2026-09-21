@@ -6,6 +6,7 @@ import { ToastProvider } from '@/providers/ToastProvider';
 import { ShellProvider } from '@/providers/ShellProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ProjectProvider } from '@/providers/ProjectProvider';
+import { PrivateSpaceProvider } from '@/providers/PrivateSpaceProvider';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -14,7 +15,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <ToastProvider>
           <AuthProvider>
             <ProjectProvider>
-              <ShellProvider>{children}</ShellProvider>
+              <PrivateSpaceProvider>
+                <ShellProvider>{children}</ShellProvider>
+              </PrivateSpaceProvider>
             </ProjectProvider>
           </AuthProvider>
         </ToastProvider>

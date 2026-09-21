@@ -17,6 +17,9 @@ import { ChatPage } from '@/pages/ChatPage';
 import { SystemAdminPage } from '@/pages/SystemAdminPage';
 import { ApiTesterPage } from '@/pages/ApiTesterPage';
 import { GamesPage } from '@/pages/GamesPage';
+import { PrivateSpacePage } from '@/pages/PrivateSpacePage';
+import { CinemaPage } from '@/pages/CinemaPage';
+import { PrivateSpaceGate } from '@/components/PrivateSpaceGate';
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -72,8 +75,44 @@ export function App() {
         <Route path="/project/:projectId/api-tester" element={<ProtectedRoute><AppShell><ApiTesterPage /></AppShell></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AppShell><ProfilePage /></AppShell></ProtectedRoute>} />
         
-        {/* Fun Zone */}
-        <Route path="/games" element={<ProtectedRoute><AppShell><GamesPage /></AppShell></ProtectedRoute>} />
+        {/* Private Space (password-gated) */}
+        <Route
+          path="/private"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <PrivateSpaceGate>
+                  <PrivateSpacePage />
+                </PrivateSpaceGate>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/private/games"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <PrivateSpaceGate>
+                  <GamesPage />
+                </PrivateSpaceGate>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/private/cinema"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <PrivateSpaceGate>
+                  <CinemaPage />
+                </PrivateSpaceGate>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/games" element={<ProtectedRoute><Navigate to="/private/games" replace /></ProtectedRoute>} />
 
         {/* Old routes redirects */}
         <Route path="/board/:sectionId" element={<ProtectedRoute><Navigate to="/projects" replace /></ProtectedRoute>} />
