@@ -19,6 +19,9 @@ export type ProxySite = {
 
 function readSites(): ProxySite[] {
   // PROXY_SITES="cinema=https://topcinema.io;example=https://example.com"
+  // Each entry MUST be "key=origin" — a bare URL with no key (e.g. just
+  // "https://topcinema.io/") is invalid and gets dropped, since the key is what
+  // shows up in the proxied path (/api/proxy/<key>/...).
   const raw = process.env.PROXY_SITES?.trim();
   if (!raw) return [];
 
@@ -28,14 +31,23 @@ function readSites(): ProxySite[] {
     .filter(Boolean)
     .map((entry) => {
       const [key, origin] = entry.split('=').map((part) => part.trim());
+      if (!key || !origin) {
+        console.warn(`[proxy] ignoring malformed PROXY_SITES entry (expected "key=origin"): "${entry}"`);
+        return { key: '', origin: '', label: '' };
+      }
       return { key, origin, label: key };
     })
     .filter((site): site is ProxySite => {
       if (!site.key || !site.origin) return false;
       try {
         const url = new URL(site.origin);
-        return url.protocol === 'https:' && url.pathname === '/';
+        if (url.protocol !== 'https:' || url.pathname !== '/') {
+          console.warn(`[proxy] ignoring PROXY_SITES entry for "${site.key}": origin must be a bare https:// URL`);
+          return false;
+        }
+        return true;
       } catch {
+        console.warn(`[proxy] ignoring PROXY_SITES entry for "${site.key}": not a valid URL`);
         return false;
       }
     });

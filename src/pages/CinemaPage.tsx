@@ -1,12 +1,54 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clapperboard, AlertTriangle } from 'lucide-react';
 
+const SITE_KEY = 'cinema';
 // Same-origin path only — the browser never navigates to the upstream host directly,
 // so this is what shows up in devtools/history instead of the real destination.
-const CINEMA_PROXY_PATH = '/api/proxy/cinema/';
+const CINEMA_PROXY_PATH = `/api/proxy/${SITE_KEY}/`;
+
+type Status = { state: 'checking' } | { state: 'ready' } | { state: 'error'; message: string };
 
 export function CinemaPage() {
   const navigate = useNavigate();
+  const [status, setStatus] = useState<Status>({ state: 'checking' });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const health = await fetch('/api/proxy/health', { cache: 'no-store' });
+        const data = await health.json().catch(() => ({ configuredSites: [] as string[] }));
+        if (cancelled) return;
+
+        if (!data.configuredSites?.includes(SITE_KEY)) {
+          setStatus({
+            state: 'error',
+            message: `No proxy site is registered for "${SITE_KEY}". Check the PROXY_SITES env var on the server — it must be formatted as "${SITE_KEY}=https://your-upstream-domain" (a bare URL with no key is ignored), then redeploy.`,
+          });
+          return;
+        }
+
+        const probe = await fetch(CINEMA_PROXY_PATH, { method: 'HEAD', cache: 'no-store' });
+        if (cancelled) return;
+
+        if (probe.ok) {
+          setStatus({ state: 'ready' });
+        } else if (probe.status === 429) {
+          setStatus({ state: 'error', message: 'Rate limited — wait a moment and reload.' });
+        } else {
+          setStatus({ state: 'error', message: `Upstream request failed (HTTP ${probe.status}).` });
+        }
+      } catch {
+        if (!cancelled) setStatus({ state: 'error', message: 'Could not reach the proxy endpoint.' });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
@@ -27,18 +69,35 @@ export function CinemaPage() {
           This loads the configured site through the proxy at <code className="font-mono">{CINEMA_PROXY_PATH}</code>.
           Some pages may fail to display here if the upstream site blocks being framed
           (CSP <code className="font-mono">frame-ancestors</code> / <code className="font-mono">X-Frame-Options</code>),
-          and video players hosted on separate third-party domains won't be proxied — see the
-          README for details and how to configure the upstream origin.
+          and video players hosted on separate third-party domains won't be proxied.
         </p>
       </div>
 
-      <iframe
-        title="Cinema"
-        src={CINEMA_PROXY_PATH}
-        className="flex-1 w-full border-0"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        referrerPolicy="no-referrer"
-      />
+      {status.state === 'checking' && (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          Checking proxy…
+        </div>
+      )}
+
+      {status.state === 'error' && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-md text-center space-y-2">
+            <AlertTriangle className="h-8 w-8 mx-auto text-destructive" />
+            <p className="font-semibold">Cinema proxy isn't working</p>
+            <p className="text-sm text-muted-foreground">{status.message}</p>
+          </div>
+        </div>
+      )}
+
+      {status.state === 'ready' && (
+        <iframe
+          title="Cinema"
+          src={CINEMA_PROXY_PATH}
+          className="flex-1 w-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          referrerPolicy="no-referrer"
+        />
+      )}
     </div>
   );
 }
