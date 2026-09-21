@@ -103,6 +103,9 @@ export const FORWARD_REQUEST_HEADERS = [
   'if-range',
   'if-none-match',
   'if-modified-since',
+  // Needed for POST bodies (e.g. a same-origin AJAX "switch server" form submit) —
+  // without it upstream can't tell how to parse the body we're forwarding.
+  'content-type',
 ] as const;
 
 // Headers we allow back through to the browser. Notably no `set-cookie` — upstream

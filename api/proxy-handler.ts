@@ -54,7 +54,7 @@ function rewriteIframeEmbeds(body: string, siteKey: string): string {
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
@@ -84,9 +84,15 @@ export default async function handler(req: Request): Promise<Response> {
 
   let upstreamResponse: Response;
   try {
+    // Some sites (this one included) drive their in-page "switch episode/server"
+    // controls via a same-origin AJAX POST rather than a real page navigation — that
+    // has to go through as a POST, with its form body and Content-Type intact, or it
+    // just 405s and the picker silently does nothing.
+    const body = req.method === 'POST' ? await req.arrayBuffer() : undefined;
     upstreamResponse = await fetch(upstreamUrl, {
       method: req.method,
       headers: buildUpstreamHeaders(req.headers, req.headers.get('user-agent')),
+      body,
       redirect: 'manual',
     });
   } catch {
