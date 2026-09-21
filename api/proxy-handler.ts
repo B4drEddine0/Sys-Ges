@@ -91,9 +91,12 @@ export default async function handler(req: Request): Promise<Response> {
       const resolved = new URL(location, upstreamUrl);
       if (resolved.origin === new URL(site.origin).origin) {
         const proxied = `/api/proxy/${siteKey}/${resolved.pathname.replace(/^\//, '')}${resolved.search}`;
-        const redirectResponse = Response.redirect(new URL(proxied, url.origin), upstreamResponse.status);
-        redirectResponse.headers.set('x-proxy-reason', 'upstream-redirect');
-        return redirectResponse;
+        // Not Response.redirect() — its Headers object is immutable per spec, so we
+        // can't attach x-proxy-reason to it. Build the redirect response by hand instead.
+        return new Response(null, {
+          status: upstreamResponse.status,
+          headers: { location: new URL(proxied, url.origin).toString(), 'x-proxy-reason': 'upstream-redirect' },
+        });
       }
     }
     return new Response('Upstream redirect blocked', { status: 502, headers: { 'x-proxy-reason': 'redirect-off-origin' } });
