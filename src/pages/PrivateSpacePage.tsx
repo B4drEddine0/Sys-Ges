@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Lock, Gamepad2, Clapperboard } from 'lucide-react';
+import { Lock, Gamepad2, Clapperboard, Download } from 'lucide-react';
 import { usePrivateSpace } from '@/providers/PrivateSpaceProvider';
 
 export function PrivateSpacePage() {
@@ -39,18 +39,25 @@ export function PrivateSpacePage() {
             </div>
           </button>
 
-          <button
-            onClick={() => navigate('/private/mystery1')}
-            className="flex flex-col items-start gap-4 p-8 bg-card border border-border rounded-3xl text-left hover:border-primary/50 hover:shadow-lg transition-all"
-          >
-            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Clapperboard className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold">Cinema</h3>
-              <p className="text-sm text-muted-foreground mt-1">Browse through the private proxy.</p>
-            </div>
-          </button>
+          <div className="flex flex-col p-8 bg-card border border-border rounded-3xl hover:border-primary/50 hover:shadow-lg transition-all">
+            <button onClick={() => navigate('/private/mystery1')} className="flex flex-col items-start gap-4 text-left w-full">
+              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Clapperboard className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Cinema</h3>
+                <p className="text-sm text-muted-foreground mt-1">Browse through the private proxy.</p>
+              </div>
+            </button>
+            <a
+              href="/cinema-extension.zip"
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 mt-4 text-xs text-muted-foreground hover:text-primary"
+            >
+              <Download className="h-3.5 w-3.5" /> Download video-provider extension (optional, needed for one server)
+            </a>
+          </div>
         </div>
       </main>
     </div>

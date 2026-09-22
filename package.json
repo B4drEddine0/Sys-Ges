@@ -7,7 +7,7 @@
     "dev": "vite",
     "server": "json-server --watch db.json --port 3001",
     "dev:full": "concurrently -k \"npm run server\" \"npm run dev\"",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsx scripts/build-extension-zip.ts && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "generate:seed": "tsx scripts/seed-db.ts",

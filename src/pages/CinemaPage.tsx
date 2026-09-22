@@ -121,9 +121,11 @@ export function CinemaPage() {
           (CSP <code className="font-mono">frame-ancestors</code> / <code className="font-mono">X-Frame-Options</code>),
           and video players hosted on separate third-party domains won't be proxied.
           If picking an episode or server leaves it stuck, use the Refresh button above.
-          One video provider ("VideoTube") needs the companion browser extension
-          (<code className="font-mono">extension/</code> in the repo) installed to play at all —
-          without it, that specific server just won't work; the others are unaffected.
+          One video provider ("VideoTube") needs the companion browser extension —
+          download it from the Cinema card on the Private Space screen before you get
+          here, then load the extracted folder via chrome://extensions → Developer mode
+          → Load unpacked (see the README inside) — without it, that specific server
+          just won't work; the others are unaffected.
         </p>
       </div>
 
