@@ -15,7 +15,7 @@ export const RESULTS_MS = 11000;
 export const SUBMIT_GRACE_MS = 1600;
 
 export type Phase = 'lobby' | 'round_start' | 'playing' | 'reveal' | 'round_results' | 'game_results';
-export type AnswerStatus = 'unique' | 'duplicate' | 'empty' | 'invalid';
+export type AnswerStatus = 'unique' | 'duplicate' | 'empty' | 'rejected';
 
 export interface HarfPlayer {
   key: string;
@@ -47,8 +47,10 @@ export interface HarfState {
   /** Host clock when this snapshot was made, so guests can correct for clock skew. */
   now: number;
   revealIndex: number;
-  /** Per player, per category. Only present from the reveal phase onward. */
-  results: Record<string, CellResult[]> | null;
+  /** Everyone's answers, public from the voting phase onward. */
+  answers: Record<string, string[]> | null;
+  /** Votes keyed `${category}|${target}|${voter}` → is the answer correct. */
+  votes: Record<string, boolean>;
   roundPoints: Record<string, number>;
   scores: Record<string, number>;
   prevScores: Record<string, number>;
@@ -70,7 +72,8 @@ export function initialState(): HarfState {
     phaseEndsAt: null,
     now: Date.now(),
     revealIndex: 0,
-    results: null,
+    answers: null,
+    votes: {},
     roundPoints: {},
     scores: {},
     prevScores: {},
@@ -109,11 +112,31 @@ export function sanitizeAnswers(raw: unknown): string[] {
   return CATEGORIES.map((_, i) => (typeof arr[i] === 'string' ? arr[i].trim().slice(0, 40) : ''));
 }
 
-/** Unique valid answer = 10, shared valid answer = 5, empty / wrong letter = 0. */
+export const voteKey = (cat: number, target: string, voter: string) => `${cat}|${target}|${voter}`;
+
+export function tally(votes: Record<string, boolean>, cat: number, target: string) {
+  let yes = 0;
+  let no = 0;
+  const prefix = `${cat}|${target}|`;
+  for (const k in votes) {
+    if (!k.startsWith(prefix)) continue;
+    if (votes[k]) yes++;
+    else no++;
+  }
+  return { yes, no };
+}
+
+/** An answer counts when at least as many voters said yes as no (no votes = accepted). */
+export const isAccepted = (votes: Record<string, boolean>, cat: number, target: string) => {
+  const { yes, no } = tally(votes, cat, target);
+  return yes >= no;
+};
+
+/** Accepted and unique = 10, accepted but shared = 5, rejected / empty = 0. */
 export function scoreRound(
   keys: string[],
   answers: Record<string, string[]>,
-  letter: string,
+  votes: Record<string, boolean>,
 ): { results: Record<string, CellResult[]>; roundPoints: Record<string, number> } {
   const results: Record<string, CellResult[]> = {};
   const roundPoints: Record<string, number> = {};
@@ -123,12 +146,12 @@ export function scoreRound(
   });
 
   CATEGORIES.forEach((_, ci) => {
-    const groups = new Map<string, string[]>();
+    const groups = new Map<string, number>();
     keys.forEach((k) => {
       const text = answers[k]?.[ci] ?? '';
-      if (text && startsWithLetter(text, letter)) {
+      if (text && isAccepted(votes, ci, k)) {
         const id = stripArticle(normalizeArabic(text));
-        groups.set(id, [...(groups.get(id) ?? []), k]);
+        groups.set(id, (groups.get(id) ?? 0) + 1);
       }
     });
 
@@ -136,13 +159,9 @@ export function scoreRound(
       const text = answers[k]?.[ci] ?? '';
       let cell: CellResult;
       if (!text) cell = { text, status: 'empty', points: 0 };
-      else if (!startsWithLetter(text, letter)) cell = { text, status: 'invalid', points: 0 };
-      else {
-        const shared = (groups.get(stripArticle(normalizeArabic(text)))?.length ?? 1) > 1;
-        cell = shared
-          ? { text, status: 'duplicate', points: POINTS_DUPLICATE }
-          : { text, status: 'unique', points: POINTS_UNIQUE };
-      }
+      else if (!isAccepted(votes, ci, k)) cell = { text, status: 'rejected', points: 0 };
+      else if ((groups.get(stripArticle(normalizeArabic(text))) ?? 1) > 1) cell = { text, status: 'duplicate', points: POINTS_DUPLICATE };
+      else cell = { text, status: 'unique', points: POINTS_UNIQUE };
       results[k].push(cell);
       roundPoints[k] += cell.points;
     });
@@ -150,6 +169,3 @@ export function scoreRound(
 
   return { results, roundPoints };
 }
-
-/** How long each category stays on screen during the reveal. */
-export const revealStepMs = (playerCount: number) => 3200 + playerCount * 650;

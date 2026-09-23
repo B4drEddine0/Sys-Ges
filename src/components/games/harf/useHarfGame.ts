@@ -6,9 +6,9 @@ import {
   SUBMIT_GRACE_MS,
   initialState,
   pickLetter,
-  revealStepMs,
   sanitizeAnswers,
   scoreRound,
+  voteKey,
   type HarfState,
 } from './harfLogic';
 
@@ -87,7 +87,8 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
       active: s.players.filter((p) => conn.has(p.key)).map((p) => p.key),
       submitted: {},
       progress: {},
-      results: null,
+      answers: null,
+      votes: {},
       roundPoints: {},
       revealIndex: 0,
       phaseEndsAt: Date.now() + COUNTDOWN_MS,
@@ -96,38 +97,47 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
 
   const toPlaying = () => commit({ phase: 'playing', phaseEndsAt: Date.now() + stateRef.current!.roundSeconds * 1000 });
 
+  // Answers become public and the voting phase starts; the host drives it from here.
   const toReveal = () => {
     const s = stateRef.current!;
-    const { results, roundPoints } = scoreRound(s.active, answersRef.current, s.letter);
-    commit({
-      phase: 'reveal',
-      revealIndex: 0,
-      results,
-      roundPoints,
-      phaseEndsAt: Date.now() + revealStepMs(s.active.length),
-    });
+    const answers: Record<string, string[]> = {};
+    s.active.forEach((k) => (answers[k] = answersRef.current[k] ?? sanitizeAnswers([])));
+    commit({ phase: 'reveal', revealIndex: 0, answers, votes: {}, roundPoints: {}, phaseEndsAt: null });
   };
 
   const toRoundResults = () => {
     const s = stateRef.current!;
+    const { roundPoints } = scoreRound(s.active, s.answers ?? {}, s.votes);
     const scores = { ...s.scores };
     const history = { ...s.history };
     s.players.forEach((p) => {
-      const pts = s.roundPoints[p.key] ?? 0;
+      const pts = roundPoints[p.key] ?? 0;
       scores[p.key] = (scores[p.key] ?? 0) + pts;
       history[p.key] = [...(history[p.key] ?? []), pts];
     });
-    commit({ phase: 'round_results', prevScores: s.scores, scores, history, phaseEndsAt: null });
+    commit({ phase: 'round_results', roundPoints, prevScores: s.scores, scores, history, phaseEndsAt: null });
   };
 
   const advance = () => {
+    if (stateRef.current!.phase === 'round_start') toPlaying();
+  };
+
+  // Host-only navigation through the categories; going past the last one finishes voting.
+  const go = (delta: 1 | -1) => {
     const s = stateRef.current!;
-    if (s.phase === 'round_start') toPlaying();
-    else if (s.phase === 'reveal') {
-      if (s.revealIndex + 1 < CATEGORIES.length) {
-        commit({ revealIndex: s.revealIndex + 1, phaseEndsAt: Date.now() + revealStepMs(s.active.length) });
-      } else toRoundResults();
-    }
+    if (s.phase !== 'reveal') return;
+    const idx = s.revealIndex + delta;
+    if (idx < 0) return;
+    if (idx >= CATEGORIES.length) toRoundResults();
+    else commit({ revealIndex: idx });
+  };
+
+  const receiveVote = (voter: string, cat: unknown, target: unknown, value: unknown) => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'reveal' || typeof cat !== 'number' || typeof target !== 'string' || typeof value !== 'boolean') return;
+    if (voter === target || !s.active.includes(voter) || !s.active.includes(target)) return;
+    if (!s.answers?.[target]?.[cat]) return;
+    commit({ votes: { ...s.votes, [voteKey(cat, target, voter)]: value } });
   };
 
   const receiveSubmit = (key: string, raw: unknown) => {
@@ -148,8 +158,8 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
     commit({ progress: { ...s.progress, [key]: count } });
   };
 
-  const hostApi = useRef({ advance, toReveal, receiveSubmit, receiveProgress, commit, startRound });
-  hostApi.current = { advance, toReveal, receiveSubmit, receiveProgress, commit, startRound };
+  const hostApi = useRef({ advance, toReveal, receiveSubmit, receiveProgress, receiveVote, go, commit, startRound });
+  hostApi.current = { advance, toReveal, receiveSubmit, receiveProgress, receiveVote, go, commit, startRound };
 
   // Keep the host's player list in step with room presence (join / leave / rename).
   useEffect(() => {
@@ -203,11 +213,7 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
       offs.push(listen(channel, 'harf_hello', () => stateRef.current && send('harf_state', { ...stateRef.current, now: Date.now() })));
       offs.push(listen(channel, 'harf_submit', (p) => hostApi.current.receiveSubmit(p.key, p.answers)));
       offs.push(listen(channel, 'harf_progress', (p) => hostApi.current.receiveProgress(p.key, p.count)));
-      offs.push(
-        listen(channel, 'harf_next', () => {
-          if (stateRef.current?.phase === 'reveal') hostApi.current.advance();
-        }),
-      );
+      offs.push(listen(channel, 'harf_vote', (p) => hostApi.current.receiveVote(p.key, p.cat, p.target, p.value)));
       // Re-announce in case guests bound their listeners after the first snapshot.
       if (stateRef.current) send('harf_state', { ...stateRef.current, now: Date.now() });
     } else {
@@ -253,11 +259,13 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
     else send('harf_progress', { key: myKey, count });
   };
 
-  const next = () => {
-    if (isHost) {
-      if (stateRef.current?.phase === 'reveal') hostApi.current.advance();
-    } else send('harf_next', {});
+  const vote = (cat: number, target: string, value: boolean) => {
+    if (isHost) hostApi.current.receiveVote(myKey, cat, target, value);
+    else send('harf_vote', { key: myKey, cat, target, value });
   };
+
+  const next = () => isHost && hostApi.current.go(1);
+  const back = () => isHost && hostApi.current.go(-1);
 
   // Another round with a fresh letter; the scoreboard keeps accumulating.
   const playAgain = () => {
@@ -267,5 +275,5 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
   const getNow = useCallback(() => Date.now() + offsetRef.current, []);
   const locked = !!state && (!!state.submitted[myKey] || localLockedRound === state.round);
 
-  return { state, locked, getNow, actions: { start, submit, reportProgress, next, playAgain } };
+  return { state, locked, getNow, actions: { start, submit, reportProgress, vote, next, back, playAgain } };
 }

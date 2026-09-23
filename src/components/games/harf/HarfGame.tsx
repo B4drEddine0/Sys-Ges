@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion';
-import { AlertCircle, Ban, Check, ChevronLeft, Copy, Crown, Lock, MinusCircle, Sparkles, Trophy } from 'lucide-react';
+import { AlertCircle, Ban, Check, ChevronLeft, ChevronRight, Copy, Crown, Lock, MinusCircle, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui';
 import {
   CATEGORIES,
   POINTS_DUPLICATE,
   POINTS_UNIQUE,
+  scoreRound,
   startsWithLetter,
+  tally,
+  voteKey,
   type AnswerStatus,
   type HarfPlayer,
   type HarfState,
@@ -55,7 +58,7 @@ export function HarfGame({ channel, isHost, myKey, playerKeys, playerNames, onLe
                   ) : (
                     <Playing key={state.round} state={state} myKey={myKey} getNow={getNow} actions={actions} />
                   ))}
-                {state.phase === 'reveal' && <Reveal state={state} myKey={myKey} getNow={getNow} actions={actions} />}
+                {state.phase === 'reveal' && <Reveal state={state} myKey={myKey} isHost={isHost} actions={actions} />}
                 {state.phase === 'round_results' && <RoundResults state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
               </motion.div>
 
@@ -411,12 +414,12 @@ function Spectating({ state, myKey, getNow }: { state: HarfState; myKey: string;
   );
 }
 
-// ---------------------------------------------------------------- reveal
+// ---------------------------------------------------------------- reveal + voting
 
 const STATUS_UI: Record<AnswerStatus, { label: string; icon: typeof Sparkles; cls: string }> = {
   unique: { label: 'إجابة مميزة', icon: Sparkles, cls: 'text-emerald-600 dark:text-emerald-400' },
   duplicate: { label: 'مكرّرة', icon: Copy, cls: 'text-amber-600 dark:text-amber-400' },
-  invalid: { label: 'ما تبدأ بالحرف', icon: Ban, cls: 'text-rose-500' },
+  rejected: { label: 'مرفوضة بالتصويت', icon: Ban, cls: 'text-rose-500' },
   empty: { label: 'ما كتب', icon: MinusCircle, cls: 'text-muted-foreground' },
 };
 
@@ -425,20 +428,18 @@ function orderedActive(state: HarfState, myKey: string): HarfPlayer[] {
   return [...list.filter((p) => p.key === myKey), ...list.filter((p) => p.key !== myKey)];
 }
 
-function Reveal({ state, myKey, getNow, actions }: { state: HarfState; myKey: string; getNow: () => number; actions: Api }) {
+function Reveal({ state, myKey, isHost, actions }: { state: HarfState; myKey: string; isHost: boolean; actions: Api }) {
   const idx = state.revealIndex;
   const cat = CATEGORIES[idx];
   const players = orderedActive(state, myKey);
-  const total = state.phaseEndsAt ? Math.max(1, state.phaseEndsAt - state.now) : 1;
-  const left = useSecondsLeft(state.phaseEndsAt, getNow);
-  void left;
-  const remainMs = state.phaseEndsAt ? Math.max(0, state.phaseEndsAt - getNow()) : 0;
+  const { results } = useMemo(() => scoreRound(state.active, state.answers ?? {}, state.votes), [state.active, state.answers, state.votes]);
+  const last = idx + 1 >= CATEGORIES.length;
 
   return (
     <div className="space-y-4">
       {idx === 0 && (
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 1.6, times: [0, 0.15, 0.8, 1] }} className="text-center text-lg font-extrabold">
-          خلّينا نشوف شو كتب الكل 👀
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 2.4, times: [0, 0.1, 0.85, 1] }} className="text-center text-base font-extrabold">
+          وقت التصويت! قرّروا إذا كل إجابة صحيحة 🗳️
         </motion.p>
       )}
 
@@ -448,78 +449,112 @@ function Reveal({ state, myKey, getNow, actions }: { state: HarfState; myKey: st
         ))}
       </div>
 
-      <>
-        <motion.div key={idx} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-3">
-          <div className="flex items-center justify-center gap-3">
-            <span className="text-4xl font-black">{cat}</span>
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl text-xl font-black text-white" style={{ background: '#6d5efc' }}>
-              {state.letter}
-            </span>
-          </div>
+      <motion.div key={idx} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-3">
+        <div className="flex items-center justify-center gap-3">
+          <span className="text-4xl font-black">{cat}</span>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl text-xl font-black text-white" style={{ background: '#6d5efc' }}>
+            {state.letter}
+          </span>
+        </div>
 
-          <div className="space-y-3">
-            {players.map((p, i) => {
-              const cell = state.results?.[p.key]?.[idx];
-              if (!cell) return null;
-              const ui = STATUS_UI[cell.status];
-              const Icon = ui.icon;
-              const mine = p.key === myKey;
-              const c = colorOf(p);
-              const dim = cell.status === 'empty' || cell.status === 'invalid';
-              const delay = 0.2 + i * 0.45;
-              return (
-                <motion.div
-                  key={p.key}
-                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay, type: 'spring', stiffness: 260, damping: 20 }}
-                  className={`flex items-center gap-3 rounded-3xl p-3 pe-4 shadow-soft ${dim ? 'bg-muted/50' : 'bg-card'} ${dim ? '' : 'ring-2'}`}
-                  style={dim ? { boxShadow: `inset 0 0 0 2px ${mine ? c : 'transparent'}` } : { ['--tw-ring-color' as string]: mine ? c : `${c}55` }}
-                >
+        <div className="space-y-3">
+          {players.map((p, i) => {
+            const cell = results[p.key]?.[idx];
+            if (!cell) return null;
+            const ui = STATUS_UI[cell.status];
+            const Icon = ui.icon;
+            const mine = p.key === myKey;
+            const c = colorOf(p);
+            const dim = cell.status === 'empty' || cell.status === 'rejected';
+            const { yes, no } = tally(state.votes, idx, p.key);
+            const myVote = state.votes[voteKey(idx, p.key, myKey)];
+            const hasText = !!cell.text;
+            const wrongLetter = hasText && !startsWithLetter(cell.text, state.letter);
+            const delay = 0.15 + i * 0.3;
+            return (
+              <motion.div
+                key={p.key}
+                initial={{ opacity: 0, y: 30, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay, type: 'spring', stiffness: 260, damping: 20 }}
+                className={`space-y-3 rounded-3xl p-3 pe-4 shadow-soft ${dim ? 'bg-muted/50' : 'bg-card'}`}
+                style={{ boxShadow: mine ? `inset 0 0 0 2px ${c}` : undefined }}
+              >
+                <div className="flex items-center gap-3">
                   <PlayerAvatar player={p} size={48} ring={mine} />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold" style={{ color: c }}>
                       {mine ? 'أنت' : p.name}
                     </p>
-                    <motion.p
-                      initial={{ opacity: 0, scale: 0.7 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: delay + 0.15, type: 'spring', stiffness: 300, damping: 15 }}
-                      className={`truncate text-2xl font-black ${dim ? 'text-muted-foreground/60' : ''} ${cell.status === 'empty' ? 'text-base font-bold' : ''}`}
-                    >
-                      {cell.status === 'empty' ? '— ما كتب —' : cell.text}
-                    </motion.p>
+                    <p className={`truncate text-2xl font-black ${cell.status === 'empty' ? 'text-base font-bold text-muted-foreground/60' : dim ? 'line-through decoration-rose-500/60' : ''}`}>
+                      {hasText ? cell.text : '— ما كتب —'}
+                    </p>
                     <p className={`flex items-center gap-1 text-xs font-bold ${ui.cls}`}>
                       <Icon className="h-3.5 w-3.5" /> {ui.label}
+                      {wrongLetter && <span className="ms-2 text-amber-600 dark:text-amber-400">· ما تبدأ بحرف {state.letter}</span>}
                     </p>
                   </div>
                   {cell.points > 0 && (
                     <motion.span
-                      initial={{ scale: 0, rotate: -20 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ delay: delay + 0.35, type: 'spring', stiffness: 400, damping: 12 }}
+                      key={cell.points}
+                      initial={{ scale: 0.5 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 12 }}
                       className={`rounded-2xl px-3 py-1.5 text-lg font-black tabular-nums text-white ${cell.status === 'unique' ? 'bg-emerald-500' : 'bg-amber-500'}`}
                     >
                       +{cell.points}
                     </motion.span>
                   )}
-                </motion.div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </>
+                </div>
 
-      <div className="flex items-center gap-3 pt-2">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-          <motion.div key={`${idx}`} className="h-full origin-right rounded-full" style={{ background: '#6d5efc' }} initial={{ scaleX: remainMs / total }} animate={{ scaleX: 0 }} transition={{ duration: remainMs / 1000, ease: 'linear' }} />
+                {hasText && (
+                  <div className="flex items-center gap-2">
+                    {mine ? (
+                      <p className="flex-1 text-xs font-bold text-muted-foreground">الباقين يصوّتون على إجابتك</p>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => actions.vote(idx, p.key, true)}
+                          className={`flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl text-sm font-extrabold transition-all active:scale-95 ${myVote === true ? 'bg-emerald-500 text-white shadow-md' : 'bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400'}`}
+                        >
+                          <Check className="h-4 w-4" /> صحيحة
+                        </button>
+                        <button
+                          onClick={() => actions.vote(idx, p.key, false)}
+                          className={`flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl text-sm font-extrabold transition-all active:scale-95 ${myVote === false ? 'bg-rose-500 text-white shadow-md' : 'bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-400'}`}
+                        >
+                          <X className="h-4 w-4" /> خاطئة
+                        </button>
+                      </>
+                    )}
+                    <span className="flex shrink-0 items-center gap-2 text-sm font-black tabular-nums" dir="ltr">
+                      <span className="text-emerald-600 dark:text-emerald-400">👍 {yes}</span>
+                      <span className="text-rose-500">👎 {no}</span>
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
         </div>
-        <Button onClick={actions.next} variant="secondary" className="h-11 gap-1 rounded-2xl px-5 font-extrabold">
-          {idx + 1 < CATEGORIES.length ? 'التالي' : 'النتائج'} <ChevronLeft className="h-4 w-4" />
-        </Button>
-      </div>
+      </motion.div>
+
+      {isHost ? (
+        <div className="flex gap-3 pt-2">
+          <Button onClick={actions.back} disabled={idx === 0} variant="secondary" className="h-12 gap-1 rounded-2xl px-5 font-extrabold">
+            <ChevronRight className="h-4 w-4" /> السابق
+          </Button>
+          <Button onClick={actions.next} className="h-12 flex-1 gap-1 rounded-2xl text-base font-black" style={{ background: '#6d5efc' }}>
+            {last ? 'إنهاء التصويت والنتائج' : 'التالي'} <ChevronLeft className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <p className="flex items-center justify-center gap-2 pt-2 text-sm font-bold text-muted-foreground">
+          <TypingDots /> صاحب الغرفة ينقلنا للتصنيف التالي
+        </p>
+      )}
       <p className="text-center text-xs text-muted-foreground">
-        {POINTS_UNIQUE} نقاط للإجابة المميزة · {POINTS_DUPLICATE} للمكرّرة
+        الأغلبية تقرّر · مميزة {POINTS_UNIQUE} نقاط · مكرّرة {POINTS_DUPLICATE}
       </p>
     </div>
   );
