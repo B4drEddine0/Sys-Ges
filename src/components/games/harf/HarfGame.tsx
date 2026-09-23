@@ -38,13 +38,11 @@ export function HarfGame({ channel, isHost, myKey, playerKeys, playerNames, onLe
           </div>
         ) : (
           <>
-            {state.phase !== 'lobby' && state.phase !== 'game_results' && <TopBar state={state} />}
-            <AnimatePresence mode="wait">
+            {state.phase !== 'lobby' && <TopBar state={state} />}
               <motion.div
                 key={`${state.phase}-${state.phase === 'playing' ? state.round : ''}`}
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.22 }}
               >
                 {state.phase === 'lobby' && <Lobby state={state} isHost={isHost} myKey={myKey} actions={actions} onLeave={onLeave} />}
@@ -58,10 +56,9 @@ export function HarfGame({ channel, isHost, myKey, playerKeys, playerNames, onLe
                     <Playing key={state.round} state={state} myKey={myKey} getNow={getNow} actions={actions} />
                   ))}
                 {state.phase === 'reveal' && <Reveal state={state} myKey={myKey} getNow={getNow} actions={actions} />}
-                {state.phase === 'round_results' && <RoundResults state={state} myKey={myKey} getNow={getNow} actions={actions} />}
-                {state.phase === 'game_results' && <GameResults state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
+                {state.phase === 'round_results' && <RoundResults state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
               </motion.div>
-            </AnimatePresence>
+
           </>
         )}
       </div>
@@ -75,7 +72,7 @@ function TopBar({ state }: { state: HarfState }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-3 px-1">
       <span className="rounded-full bg-muted px-3 py-1 text-sm font-extrabold">
-        الجولة <span className="tabular-nums">{state.round}</span> / <span className="tabular-nums">{state.totalRounds}</span>
+        الجولة <span className="tabular-nums">{state.round}</span>
       </span>
       {state.letter && state.phase !== 'round_start' && (
         <span className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
@@ -122,7 +119,6 @@ const cardCls = 'rounded-3xl bg-card p-5 shadow-soft ring-1 ring-border/60';
 // ---------------------------------------------------------------- lobby
 
 function Lobby({ state, isHost, myKey, actions, onLeave }: { state: HarfState; isHost: boolean; myKey: string; actions: Api; onLeave?: () => void }) {
-  const [rounds, setRounds] = useState(5);
   const [seconds, setSeconds] = useState(60);
   const connected = state.players.filter((p) => p.connected);
   const Seg = ({ value, set, options, suffix }: { value: number; set: (n: number) => void; options: number[]; suffix: string }) => (
@@ -165,14 +161,10 @@ function Lobby({ state, isHost, myKey, actions, onLeave }: { state: HarfState; i
       {isHost ? (
         <div className={`${cardCls} space-y-4 text-start`}>
           <div className="space-y-2">
-            <p className="text-sm font-bold text-muted-foreground">عدد الجولات</p>
-            <Seg value={rounds} set={setRounds} options={[3, 5, 8]} suffix="جولات" />
-          </div>
-          <div className="space-y-2">
             <p className="text-sm font-bold text-muted-foreground">وقت الجولة</p>
             <Seg value={seconds} set={setSeconds} options={[45, 60, 90]} suffix="ثانية" />
           </div>
-          <Button onClick={() => actions.start({ totalRounds: rounds, roundSeconds: seconds })} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: '#6d5efc' }}>
+          <Button onClick={() => actions.start({ roundSeconds: seconds })} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: '#6d5efc' }}>
             يلّا نبدأ!
           </Button>
         </div>
@@ -456,8 +448,8 @@ function Reveal({ state, myKey, getNow, actions }: { state: HarfState; myKey: st
         ))}
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div key={idx} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-3">
+      <>
+        <motion.div key={idx} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-3">
           <div className="flex items-center justify-center gap-3">
             <span className="text-4xl font-black">{cat}</span>
             <span className="flex h-10 w-10 items-center justify-center rounded-xl text-xl font-black text-white" style={{ background: '#6d5efc' }}>
@@ -516,7 +508,7 @@ function Reveal({ state, myKey, getNow, actions }: { state: HarfState; myKey: st
             })}
           </div>
         </motion.div>
-      </AnimatePresence>
+      </>
 
       <div className="flex items-center gap-3 pt-2">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -557,26 +549,24 @@ function ScoreRow({ p, state, rank, mine }: { p: HarfPlayer; state: HarfState; r
   );
 }
 
-function RoundResults({ state, myKey, getNow, actions }: { state: HarfState; myKey: string; getNow: () => number; actions: Api }) {
+function RoundResults({ state, myKey, isHost, actions, onLeave }: { state: HarfState; myKey: string; isHost: boolean; actions: Api; onLeave?: () => void }) {
   const [settled, setSettled] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setSettled(true), 1500);
     return () => clearTimeout(t);
   }, []);
-  const left = useSecondsLeft(state.phaseEndsAt, getNow);
   const sorted = useMemo(() => {
     const src = settled ? state.scores : state.prevScores;
     return [...state.players].filter((p) => p.key in state.scores || state.active.includes(p.key)).sort((a, b) => (src[b.key] ?? 0) - (src[a.key] ?? 0));
   }, [settled, state]);
-  const last = state.round >= state.totalRounds;
 
   return (
     <div className="space-y-4">
       <div className="space-y-1 text-center">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.6 }} className="text-5xl">
-          {last ? '🏁' : '✅'}
+          🏆
         </motion.div>
-        <h2 className="text-3xl font-black">{last ? 'انتهت آخر جولة!' : 'انتهت الجولة!'}</h2>
+        <h2 className="text-3xl font-black">لوحة النتائج</h2>
       </div>
       <LayoutGroup>
         <div className="space-y-2">
@@ -585,81 +575,20 @@ function RoundResults({ state, myKey, getNow, actions }: { state: HarfState; myK
           ))}
         </div>
       </LayoutGroup>
-      <Button onClick={actions.next} className="h-14 w-full gap-2 rounded-2xl text-lg font-black" style={{ background: '#6d5efc' }}>
-        {last ? 'النتيجة النهائية' : 'الجولة التالية'} <span dir="ltr" className="tabular-nums opacity-80">({left})</span>
-      </Button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- game results
-
-function GameResults({ state, myKey, isHost, actions, onLeave }: { state: HarfState; myKey: string; isHost: boolean; actions: Api; onLeave?: () => void }) {
-  const ranked = useMemo(() => [...state.players].filter((p) => p.key in state.scores).sort((a, b) => (state.scores[b.key] ?? 0) - (state.scores[a.key] ?? 0)), [state]);
-  const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean) as HarfPlayer[];
-  const heights: Record<number, string> = { 0: 'h-32', 1: 'h-24', 2: 'h-16' };
-  const rankOf = (p: HarfPlayer) => ranked.indexOf(p);
-  const winner = ranked[0];
-
-  return (
-    <div className="space-y-6 pt-2">
-      <div className="space-y-1 text-center">
-        <motion.div initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', bounce: 0.6 }}>
-          <Trophy className="mx-auto h-14 w-14 text-amber-500" />
-        </motion.div>
-        <h2 className="text-3xl font-black">{winner?.key === myKey ? 'مبروك! فزت 🎉' : winner ? `${winner.name} فاز!` : 'انتهت اللعبة'}</h2>
-      </div>
-
-      <div className="flex items-end justify-center gap-3">
-        {podium.map((p, i) => {
-          const r = rankOf(p);
-          return (
-            <motion.div key={p.key} initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + (2 - r) * 0.3, type: 'spring', damping: 18 }} className="flex w-24 flex-col items-center gap-1">
-              {r === 0 && <Crown className="h-6 w-6 text-amber-500" />}
-              <PlayerAvatar player={p} size={r === 0 ? 64 : 52} ring={p.key === myKey} />
-              <span className="max-w-full truncate text-sm font-extrabold">{p.key === myKey ? 'أنت' : p.name}</span>
-              <div className={`${heights[r]} flex w-full items-start justify-center rounded-t-2xl pt-2 text-2xl font-black text-white`} style={{ background: colorOf(p) }}>
-                <span className="tabular-nums">{state.scores[p.key] ?? 0}</span>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      <div className={`${cardCls} space-y-3`}>
-        <p className="text-sm font-bold text-muted-foreground">أداء الجولات</p>
-        {ranked.map((p, i) => (
-          <div key={p.key} className="flex items-center gap-3">
-            <span className="w-5 text-center text-sm font-black text-muted-foreground tabular-nums">{i + 1}</span>
-            <PlayerAvatar player={p} size={30} />
-            <div className="flex flex-1 flex-wrap gap-1.5">
-              {(state.history[p.key] ?? []).map((pts, r) => (
-                <span key={r} className="flex h-7 min-w-9 items-center justify-center rounded-lg px-1.5 text-xs font-black tabular-nums" style={{ background: pts > 0 ? `${colorOf(p)}26` : undefined, color: pts > 0 ? colorOf(p) : undefined }}>
-                  {pts}
-                </span>
-              ))}
-            </div>
-            <span className="text-lg font-black tabular-nums">{state.scores[p.key] ?? 0}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-2">
-        {isHost ? (
-          <Button onClick={actions.playAgain} className="h-14 rounded-2xl text-lg font-black" style={{ background: '#6d5efc' }}>
-            العب مرة ثانية
-          </Button>
-        ) : (
-          <p className="flex items-center justify-center gap-2 py-2 text-sm font-bold text-muted-foreground">
-            <TypingDots /> بانتظار صاحب الغرفة
-          </p>
-        )}
-        {onLeave && (
-          <Button variant="secondary" onClick={onLeave} className="h-12 rounded-2xl font-extrabold">
-            العودة إلى الألعاب
-          </Button>
-        )}
-      </div>
+      {isHost ? (
+        <Button onClick={actions.playAgain} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: '#6d5efc' }}>
+          جولة جديدة
+        </Button>
+      ) : (
+        <p className="flex items-center justify-center gap-2 py-2 text-sm font-bold text-muted-foreground">
+          <TypingDots /> بانتظار صاحب الغرفة لبدء جولة جديدة
+        </p>
+      )}
+      {onLeave && (
+        <Button variant="secondary" onClick={onLeave} className="h-12 w-full rounded-2xl font-extrabold">
+          العودة إلى الألعاب
+        </Button>
+      )}
     </div>
   );
 }

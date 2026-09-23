@@ -3,7 +3,6 @@ import {
   CATEGORIES,
   COUNTDOWN_MS,
   PLAYER_COLORS,
-  RESULTS_MS,
   SUBMIT_GRACE_MS,
   initialState,
   pickLetter,
@@ -118,7 +117,7 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
       scores[p.key] = (scores[p.key] ?? 0) + pts;
       history[p.key] = [...(history[p.key] ?? []), pts];
     });
-    commit({ phase: 'round_results', prevScores: s.scores, scores, history, phaseEndsAt: Date.now() + RESULTS_MS });
+    commit({ phase: 'round_results', prevScores: s.scores, scores, history, phaseEndsAt: null });
   };
 
   const advance = () => {
@@ -128,9 +127,6 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
       if (s.revealIndex + 1 < CATEGORIES.length) {
         commit({ revealIndex: s.revealIndex + 1, phaseEndsAt: Date.now() + revealStepMs(s.active.length) });
       } else toRoundResults();
-    } else if (s.phase === 'round_results') {
-      if (s.round >= s.totalRounds) commit({ phase: 'game_results', phaseEndsAt: null });
-      else startRound(s.round + 1);
     }
   };
 
@@ -187,7 +183,7 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
   useEffect(() => {
     if (!isHost || !state) return;
     const { phase, phaseEndsAt } = state;
-    if (phase === 'lobby' || phase === 'game_results' || phaseEndsAt == null) return;
+    if (phase === 'lobby' || phase === 'round_results' || phaseEndsAt == null) return;
     let delay = phaseEndsAt - Date.now();
     let run = () => hostApi.current.advance();
     if (phase === 'playing') {
@@ -209,8 +205,7 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
       offs.push(listen(channel, 'harf_progress', (p) => hostApi.current.receiveProgress(p.key, p.count)));
       offs.push(
         listen(channel, 'harf_next', () => {
-          const ph = stateRef.current?.phase;
-          if (ph === 'reveal' || ph === 'round_results') hostApi.current.advance();
+          if (stateRef.current?.phase === 'reveal') hostApi.current.advance();
         }),
       );
       // Re-announce in case guests bound their listeners after the first snapshot.
@@ -237,9 +232,9 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
   }, [isHost, channel, hasState, myKey, send]);
 
   // ---------- actions ----------
-  const start = (settings: { totalRounds: number; roundSeconds: number }) => {
+  const start = (settings: { roundSeconds: number }) => {
     if (!isHost) return;
-    hostApi.current.commit({ ...settings, scores: {}, prevScores: {}, history: {}, usedLetters: [] });
+    hostApi.current.commit({ ...settings, totalRounds: 1, scores: {}, prevScores: {}, history: {}, usedLetters: [] });
     hostApi.current.startRound(1);
   };
 
@@ -260,26 +255,13 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
 
   const next = () => {
     if (isHost) {
-      const ph = stateRef.current?.phase;
-      if (ph === 'reveal' || ph === 'round_results') hostApi.current.advance();
+      if (stateRef.current?.phase === 'reveal') hostApi.current.advance();
     } else send('harf_next', {});
   };
 
+  // Another round with a fresh letter; the scoreboard keeps accumulating.
   const playAgain = () => {
-    if (!isHost) return;
-    hostApi.current.commit({
-      phase: 'lobby',
-      round: 0,
-      usedLetters: [],
-      scores: {},
-      prevScores: {},
-      history: {},
-      results: null,
-      roundPoints: {},
-      submitted: {},
-      progress: {},
-      phaseEndsAt: null,
-    });
+    if (isHost && stateRef.current?.phase === 'round_results') hostApi.current.startRound(stateRef.current.round + 1);
   };
 
   const getNow = useCallback(() => Date.now() + offsetRef.current, []);
