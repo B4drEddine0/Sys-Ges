@@ -70,3 +70,10 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.harf-root {
+  font-family: 'Tajawal', 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+}
+.harf-root input {
+  font-family: inherit;
+}
