@@ -36,7 +36,8 @@ export interface HarfState {
   totalRounds: number;
   roundSeconds: number;
   letter: string;
-  usedLetters: string[];
+  /** Shuffled letters not yet played; persists across games in the same room. */
+  letterDeck: string[];
   players: HarfPlayer[];
   /** Keys of the players taking part in the current round (late joiners wait for the next one). */
   active: string[];
@@ -64,7 +65,7 @@ export function initialState(): HarfState {
     totalRounds: 5,
     roundSeconds: 60,
     letter: '',
-    usedLetters: [],
+    letterDeck: [],
     players: [],
     active: [],
     submitted: {},
@@ -101,10 +102,31 @@ export function startsWithLetter(answer: string, letter: string): boolean {
   return n.startsWith(l) || stripArticle(n).startsWith(l);
 }
 
-export function pickLetter(used: string[]): string {
-  let pool = LETTERS.filter((l) => !used.includes(l));
-  if (pool.length === 0) pool = LETTERS;
-  return pool[Math.floor(Math.random() * pool.length)];
+// Fisher–Yates driven by the Web Crypto RNG, so the order isn't predictable or patterned.
+function shuffle<T>(items: readonly T[]): T[] {
+  const a = [...items];
+  const rand = new Uint32Array(1);
+  for (let i = a.length - 1; i > 0; i--) {
+    crypto.getRandomValues(rand);
+    const j = rand[0] % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Draws the next letter from a shuffled deck, so no letter repeats until the deck is
+ * empty. The deck lives in room state and carries over between games. When it runs out
+ * it is reshuffled, and the new first letter is never the one just played.
+ */
+export function dealLetter(deck: string[], last: string): { letter: string; deck: string[] } {
+  let d = deck;
+  if (d.length === 0) {
+    d = shuffle(LETTERS);
+    if (d.length > 1 && d[0] === last) [d[0], d[d.length - 1]] = [d[d.length - 1], d[0]];
+  }
+  const [letter, ...rest] = d;
+  return { letter, deck: rest };
 }
 
 export function sanitizeAnswers(raw: unknown): string[] {

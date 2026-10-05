@@ -5,7 +5,7 @@ import {
   PLAYER_COLORS,
   SUBMIT_GRACE_MS,
   initialState,
-  pickLetter,
+  dealLetter,
   sanitizeAnswers,
   scoreRound,
   voteKey,
@@ -76,14 +76,14 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
 
   const startRound = (round: number) => {
     const s = stateRef.current!;
-    const letter = pickLetter(s.usedLetters);
+    const { letter, deck } = dealLetter(s.letterDeck, s.letter);
     const conn = connectedKeys();
     answersRef.current = {};
     commit({
       phase: 'round_start',
       round,
       letter,
-      usedLetters: [...s.usedLetters, letter],
+      letterDeck: deck,
       active: s.players.filter((p) => conn.has(p.key)).map((p) => p.key),
       submitted: {},
       progress: {},
@@ -240,7 +240,7 @@ export function useHarfGame({ channel, isHost, myKey, playerKeys, playerNames }:
   // ---------- actions ----------
   const start = (settings: { roundSeconds: number }) => {
     if (!isHost) return;
-    hostApi.current.commit({ ...settings, totalRounds: 1, scores: {}, prevScores: {}, history: {}, usedLetters: [] });
+    hostApi.current.commit({ ...settings, totalRounds: 1, scores: {}, prevScores: {}, history: {} });
     hostApi.current.startRound(1);
   };
 
