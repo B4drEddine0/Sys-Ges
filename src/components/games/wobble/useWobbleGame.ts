@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '../shared/channelBus';
-import { BASE_LEVEL, COUNTDOWN_MS, PLAYER_COLORS, POINTS_BY_RANK, RACE_TIME_CAP_MS, STUN_MS, levelForSeed, randomSeed, type Level } from './wobbleLogic';
+import { COUNTDOWN_MS, COURSES, PLAYER_COLORS, POINTS_BY_RANK, RACE_TIME_CAP_MS, STUN_MS, levelForSeed, randomSeed } from './wobbleLogic';
 
-export type WobblePhase = 'lobby' | 'countdown' | 'racing' | 'results';
+export type WobblePhase = 'lobby' | 'countdown' | 'racing' | 'results' | 'tournament';
 
 export interface WobblePlayer {
   key: string;
@@ -19,6 +19,7 @@ export interface WobbleFinish {
 export interface WobbleState {
   phase: WobblePhase;
   raceNum: number;
+  totalRounds: number;
   players: WobblePlayer[];
   active: string[];
   raceStartAt: number | null;
@@ -36,6 +37,7 @@ function initialState(): WobbleState {
   return {
     phase: 'lobby',
     raceNum: 0,
+    totalRounds: 3,
     players: [],
     active: [],
     raceStartAt: null,
@@ -110,6 +112,25 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
     commit({
       phase: 'countdown',
       raceNum: s.raceNum + 1,
+      active: s.players.filter((p) => conn.has(p.key)).map((p) => p.key),
+      finishes: {},
+      seed: randomSeed(),
+      raceStartAt: Date.now() + COUNTDOWN_MS,
+      raceEndsAt: null,
+    });
+  };
+
+  const startTournament = (totalRounds: number) => {
+    const conn = new Set(rosterRef.current.map((r) => r.key));
+    const s = stateRef.current!;
+    remotes.current.clear();
+    commit({
+      phase: 'countdown',
+      totalRounds,
+      raceNum: 1,
+      scores: {},
+      prevScores: {},
+      history: {},
       active: s.players.filter((p) => conn.has(p.key)).map((p) => p.key),
       finishes: {},
       seed: randomSeed(),
@@ -253,12 +274,24 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
   }, [isHost, channel, hasState, myKey, send]);
 
   // ---------- public API ----------
-  const start = () => {
-    if (isHost) hostApi.current.startRace();
+  const start = (totalRounds: number) => {
+    if (isHost) startTournament(totalRounds);
   };
 
-  const playAgain = () => {
-    if (isHost && stateRef.current?.phase === 'results') hostApi.current.startRace();
+  // The single "continue" button on the per-race results screen: either the next race
+  // in this tournament, or — on the last round — the final podium. Mirrors how Harf's
+  // round-results screen decides between "next round" and "final results".
+  const nextRaceOrFinish = () => {
+    const s = stateRef.current;
+    if (!isHost || !s || s.phase !== 'results') return;
+    if (s.raceNum >= s.totalRounds) hostApi.current.commit({ phase: 'tournament' });
+    else hostApi.current.startRace();
+  };
+
+  const restartTournament = () => {
+    if (isHost && stateRef.current?.phase === 'tournament') {
+      hostApi.current.commit({ phase: 'lobby', raceNum: 0, scores: {}, prevScores: {}, history: {}, finishes: {} });
+    }
   };
 
   const reportFinish = (timeMs: number) => {
@@ -282,7 +315,8 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
   }, []);
 
   const getNow = useCallback(() => Date.now() + offsetRef.current, []);
-  const level = useMemo(() => (state?.seed ? levelForSeed(state.seed) : BASE_LEVEL), [state?.seed]);
+  const course = COURSES[state ? (Math.max(1, state.raceNum) - 1) % COURSES.length : 0];
+  const level = useMemo(() => (state?.seed ? levelForSeed(course, state.seed) : course), [course, state?.seed]);
 
   /** Imperative read for the canvas's render loop — interpolates each remote racer toward its last snapshot. */
   const getRemotePositions = useCallback(() => {
@@ -304,6 +338,6 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
     getRemotePositions,
     getStunUntil,
     drainThrows,
-    actions: { start, playAgain, reportFinish, sendPos, sendHit, sendThrow },
+    actions: { start, nextRace: nextRaceOrFinish, restartTournament, reportFinish, sendPos, sendHit, sendThrow },
   };
 }

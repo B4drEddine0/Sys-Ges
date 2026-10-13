@@ -43,8 +43,6 @@ interface Props {
 // screen real estate actually shows more of the course instead of just zooming in.
 const VIEW_H_NORMAL = 460;
 const VIEW_H_FULL = 620;
-const SKY_TOP = '#1e1b4b';
-const SKY_BOTTOM = '#4338ca';
 
 const THROW_FX_MS = 420;
 
@@ -408,10 +406,11 @@ function render(
   ctx.scale(scale, scale);
   ctx.translate(-camX, -camY);
 
-  // Sky.
+  // Sky — themed per course.
+  const theme = level.theme;
   const sky = ctx.createLinearGradient(0, 0, 0, PIT_Y);
-  sky.addColorStop(0, SKY_TOP);
-  sky.addColorStop(1, SKY_BOTTOM);
+  sky.addColorStop(0, theme.skyTop);
+  sky.addColorStop(1, theme.skyBottom);
   ctx.fillStyle = sky;
   ctx.fillRect(camX, camY, viewW, viewH);
 
@@ -437,13 +436,9 @@ function render(
       if (rect.x + rect.w < camX - 40 || rect.x > camX + viewW + 40) continue;
       roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10);
       const grad = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h);
-      if (o.type === 'moving') {
-        grad.addColorStop(0, '#818cf8');
-        grad.addColorStop(1, '#4f46e5');
-      } else {
-        grad.addColorStop(0, '#94a3b8');
-        grad.addColorStop(1, '#475569');
-      }
+      const [c0, c1] = o.type === 'moving' ? theme.platformMoving : theme.platformStatic;
+      grad.addColorStop(0, c0);
+      grad.addColorStop(1, c1);
       ctx.fillStyle = grad;
       ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.25)';
@@ -463,8 +458,8 @@ function render(
       ctx.fillStyle = '#e2e8f0';
       ctx.fill();
       const g = ctx.createRadialGradient(ball.x - 10, ball.y - 10, 4, ball.x, ball.y, o.ballRadius);
-      g.addColorStop(0, '#fca5a5');
-      g.addColorStop(1, '#dc2626');
+      g.addColorStop(0, theme.hazardBall[0]);
+      g.addColorStop(1, theme.hazardBall[1]);
       ctx.beginPath();
       ctx.arc(ball.x, ball.y, o.ballRadius, 0, Math.PI * 2);
       ctx.fillStyle = g;
@@ -472,7 +467,7 @@ function render(
     } else if (o.type === 'spinner') {
       if (o.cx < camX - 150 || o.cx > camX + viewW + 150) continue;
       const seg = spinnerSegmentAt(o, t);
-      ctx.strokeStyle = '#fbbf24';
+      ctx.strokeStyle = theme.spinnerBar;
       ctx.lineCap = 'round';
       ctx.lineWidth = o.thickness;
       ctx.beginPath();

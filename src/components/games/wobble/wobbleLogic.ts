@@ -45,50 +45,155 @@ export interface Checkpoint {
   y: number;
 }
 
+export interface LevelTheme {
+  name: string;
+  icon: string;
+  skyTop: string;
+  skyBottom: string;
+  platformStatic: [string, string];
+  platformMoving: [string, string];
+  hazardBall: [string, string];
+  spinnerBar: string;
+}
+
 export interface Level {
+  name: string;
+  theme: LevelTheme;
   obstacles: Obstacle[];
   checkpoints: Checkpoint[];
   spawn: { x: number; y: number };
 }
 
-// One hand-built course: start pad -> stepping gaps -> moving platforms over a pit ->
-// a pendulum gauntlet -> a spinner bridge -> finish stretch. Static geometry stays
-// fixed between races; only the moving/pendulum/spinner phases get reshuffled per race
-// (see randomizedLevel) so it doesn't feel identical every replay.
-export const BASE_LEVEL: Level = {
-  spawn: { x: 70, y: 470 },
-  checkpoints: [
-    { x: 40, y: 470 },
-    { x: 900, y: 470 },
-    { x: 1820, y: 470 },
-    { x: 2860, y: 470 },
-    { x: 3620, y: 470 },
-  ],
-  obstacles: [
-    { id: 'start', type: 'static', x: 0, y: 520, w: 320, h: 120 },
-    { id: 's1', type: 'static', x: 400, y: 520, w: 140, h: 40 },
-    { id: 's2', type: 'static', x: 620, y: 470, w: 140, h: 40 },
-    { id: 's3', type: 'static', x: 840, y: 520, w: 160, h: 40 },
+// All three courses share the exact same stepping-gap sizes, floor spans and bridge-tile
+// layout (already proven completable — see the physics sanity checks run while building
+// this), so swapping which hazard type sits in which zone is always safe: it can't ever
+// create an un-crossable gap, only a differently-flavoured one. The one zone that MUST
+// stay "things you can stand on" is the stretch over the pit (no floor underneath), so
+// that's always moving platforms in every course — only their count/pattern varies.
+const CHECKPOINTS: Checkpoint[] = [
+  { x: 40, y: 470 },
+  { x: 900, y: 470 },
+  { x: 1820, y: 470 },
+  { x: 2860, y: 470 },
+  { x: 3620, y: 470 },
+];
+const SPAWN = { x: 70, y: 470 };
+const START_PAD: Obstacle = { id: 'start', type: 'static', x: 0, y: 520, w: 320, h: 120 };
+const STEP_GAPS: Obstacle[] = [
+  { id: 's1', type: 'static', x: 400, y: 520, w: 140, h: 40 },
+  { id: 's2', type: 'static', x: 620, y: 470, w: 140, h: 40 },
+  { id: 's3', type: 'static', x: 840, y: 520, w: 160, h: 40 },
+];
+const LANDING: Obstacle = { id: 'land1', type: 'static', x: 1760, y: 520, w: 220, h: 40 };
+const MID_FLOOR: Obstacle = { id: 'floor-c', type: 'static', x: 2000, y: 520, w: 900, h: 40 };
+const BRIDGE_TILES: Obstacle[] = [
+  { id: 'b1', type: 'static', x: 2960, y: 520, w: 160, h: 40 },
+  { id: 'b2', type: 'static', x: 3190, y: 520, w: 160, h: 40 },
+  { id: 'b3', type: 'static', x: 3420, y: 520, w: 160, h: 40 },
+];
+const FINISH_FLOOR: Obstacle = { id: 'finish-floor', type: 'static', x: 3650, y: 520, w: 550, h: 40 };
 
-    { id: 'm1', type: 'moving', x: 1100, y: 460, w: 120, h: 24, axis: 'x', range: 90, speed: 1.4, phase: 0 },
-    { id: 'm2', type: 'moving', x: 1350, y: 380, w: 120, h: 24, axis: 'y', range: 70, speed: 1.6, phase: 1.8 },
-    { id: 'm3', type: 'moving', x: 1600, y: 460, w: 120, h: 24, axis: 'x', range: 90, speed: 1.3, phase: 3.1 },
-    { id: 'land1', type: 'static', x: 1760, y: 520, w: 220, h: 40 },
-
-    { id: 'floor-c', type: 'static', x: 2000, y: 520, w: 900, h: 40 },
-    { id: 'p1', type: 'pendulum', pivotX: 2260, pivotY: 260, length: 260, ballRadius: 34, amplitude: 0.9, speed: 1.1, phase: 0 },
-    { id: 'p2', type: 'pendulum', pivotX: 2560, pivotY: 260, length: 260, ballRadius: 34, amplitude: 0.9, speed: 1.0, phase: 2.4 },
-    { id: 'p3', type: 'pendulum', pivotX: 2830, pivotY: 260, length: 260, ballRadius: 34, amplitude: 0.9, speed: 1.2, phase: 1.1 },
-
-    { id: 'b1', type: 'static', x: 2960, y: 520, w: 160, h: 40 },
-    { id: 'b2', type: 'static', x: 3190, y: 520, w: 160, h: 40 },
-    { id: 'b3', type: 'static', x: 3420, y: 520, w: 160, h: 40 },
-    { id: 'sp1', type: 'spinner', cx: 3080, cy: 500, length: 170, thickness: 18, speed: 1.6, phase: 0 },
-    { id: 'sp2', type: 'spinner', cx: 3460, cy: 500, length: 170, thickness: 18, speed: 1.8, phase: 2.0 },
-
-    { id: 'finish-floor', type: 'static', x: 3650, y: 520, w: 550, h: 40 },
-  ],
-};
+export const COURSES: Level[] = [
+  {
+    name: 'Sky Ruins',
+    theme: {
+      name: 'Sky Ruins',
+      icon: '🏛️',
+      skyTop: '#1e1b4b',
+      skyBottom: '#4338ca',
+      platformStatic: ['#94a3b8', '#475569'],
+      platformMoving: ['#818cf8', '#4f46e5'],
+      hazardBall: ['#fca5a5', '#dc2626'],
+      spinnerBar: '#fbbf24',
+    },
+    spawn: SPAWN,
+    checkpoints: CHECKPOINTS,
+    obstacles: [
+      START_PAD,
+      ...STEP_GAPS,
+      { id: 'm1', type: 'moving', x: 1100, y: 460, w: 120, h: 24, axis: 'x', range: 90, speed: 1.4, phase: 0 },
+      { id: 'm2', type: 'moving', x: 1350, y: 380, w: 120, h: 24, axis: 'y', range: 70, speed: 1.6, phase: 1.8 },
+      { id: 'm3', type: 'moving', x: 1600, y: 460, w: 120, h: 24, axis: 'x', range: 90, speed: 1.3, phase: 3.1 },
+      LANDING,
+      MID_FLOOR,
+      { id: 'p1', type: 'pendulum', pivotX: 2260, pivotY: 260, length: 260, ballRadius: 34, amplitude: 0.9, speed: 1.1, phase: 0 },
+      { id: 'p2', type: 'pendulum', pivotX: 2560, pivotY: 260, length: 260, ballRadius: 34, amplitude: 0.9, speed: 1.0, phase: 2.4 },
+      { id: 'p3', type: 'pendulum', pivotX: 2830, pivotY: 260, length: 260, ballRadius: 34, amplitude: 0.9, speed: 1.2, phase: 1.1 },
+      ...BRIDGE_TILES,
+      { id: 'sp1', type: 'spinner', cx: 3080, cy: 500, length: 170, thickness: 18, speed: 1.6, phase: 0 },
+      { id: 'sp2', type: 'spinner', cx: 3460, cy: 500, length: 170, thickness: 18, speed: 1.8, phase: 2.0 },
+      FINISH_FLOOR,
+    ],
+  },
+  {
+    name: 'Molten Caverns',
+    theme: {
+      name: 'Molten Caverns',
+      icon: '🌋',
+      skyTop: '#450a0a',
+      skyBottom: '#9a3412',
+      platformStatic: ['#57534e', '#292524'],
+      platformMoving: ['#fb923c', '#c2410c'],
+      hazardBall: ['#fde047', '#ea580c'],
+      spinnerBar: '#f87171',
+    },
+    spawn: SPAWN,
+    checkpoints: CHECKPOINTS,
+    obstacles: [
+      START_PAD,
+      ...STEP_GAPS,
+      // Four smaller, faster platforms instead of three — a more frantic crossing.
+      { id: 'm1', type: 'moving', x: 1080, y: 460, w: 90, h: 24, axis: 'y', range: 55, speed: 1.9, phase: 0 },
+      { id: 'm2', type: 'moving', x: 1300, y: 420, w: 90, h: 24, axis: 'x', range: 80, speed: 1.7, phase: 1.4 },
+      { id: 'm3', type: 'moving', x: 1480, y: 460, w: 90, h: 24, axis: 'y', range: 55, speed: 1.8, phase: 3.0 },
+      { id: 'm4', type: 'moving', x: 1650, y: 420, w: 90, h: 24, axis: 'x', range: 80, speed: 1.6, phase: 4.5 },
+      LANDING,
+      MID_FLOOR,
+      // Floor-level spinning lava blades instead of swinging pendulums.
+      { id: 'sp1', type: 'spinner', cx: 2250, cy: 500, length: 190, thickness: 20, speed: 1.7, phase: 0 },
+      { id: 'sp2', type: 'spinner', cx: 2500, cy: 500, length: 190, thickness: 20, speed: 1.9, phase: 2.1 },
+      { id: 'sp3', type: 'spinner', cx: 2750, cy: 500, length: 190, thickness: 20, speed: 1.6, phase: 4.2 },
+      ...BRIDGE_TILES,
+      // Swinging lava orbs over the bridge instead of spinners.
+      { id: 'p1', type: 'pendulum', pivotX: 3080, pivotY: 250, length: 250, ballRadius: 34, amplitude: 0.9, speed: 1.2, phase: 0 },
+      { id: 'p2', type: 'pendulum', pivotX: 3460, pivotY: 250, length: 250, ballRadius: 34, amplitude: 0.9, speed: 1.1, phase: 2.6 },
+      FINISH_FLOOR,
+    ],
+  },
+  {
+    name: 'Frost Summit',
+    theme: {
+      name: 'Frost Summit',
+      icon: '🏔️',
+      skyTop: '#082f49',
+      skyBottom: '#7dd3fc',
+      platformStatic: ['#e2e8f0', '#94a3b8'],
+      platformMoving: ['#67e8f9', '#0891b2'],
+      hazardBall: ['#e0f2fe', '#38bdf8'],
+      spinnerBar: '#a5f3fc',
+    },
+    spawn: SPAWN,
+    checkpoints: CHECKPOINTS,
+    obstacles: [
+      START_PAD,
+      ...STEP_GAPS,
+      // One long slow drifting platform plus two quick ones — a mixed crossing.
+      { id: 'm1', type: 'moving', x: 1120, y: 440, w: 150, h: 24, axis: 'x', range: 110, speed: 0.8, phase: 0 },
+      { id: 'm2', type: 'moving', x: 1420, y: 400, w: 90, h: 24, axis: 'y', range: 65, speed: 1.9, phase: 2.0 },
+      { id: 'm3', type: 'moving', x: 1620, y: 460, w: 90, h: 24, axis: 'x', range: 70, speed: 1.8, phase: 3.6 },
+      LANDING,
+      MID_FLOOR,
+      // Ice boulders and a shard-bar mixed together — the toughest zone of the three.
+      { id: 'p1', type: 'pendulum', pivotX: 2240, pivotY: 260, length: 260, ballRadius: 32, amplitude: 0.85, speed: 1.0, phase: 0 },
+      { id: 'sp1', type: 'spinner', cx: 2530, cy: 500, length: 180, thickness: 18, speed: 1.5, phase: 1.0 },
+      { id: 'p2', type: 'pendulum', pivotX: 2820, pivotY: 260, length: 260, ballRadius: 32, amplitude: 0.85, speed: 1.1, phase: 2.2 },
+      ...BRIDGE_TILES,
+      { id: 'p3', type: 'pendulum', pivotX: 3080, pivotY: 240, length: 230, ballRadius: 30, amplitude: 0.8, speed: 1.2, phase: 0 },
+      { id: 'p4', type: 'pendulum', pivotX: 3460, pivotY: 240, length: 230, ballRadius: 30, amplitude: 0.8, speed: 1.0, phase: 2.8 },
+      FINISH_FLOOR,
+    ],
+  },
+];
 
 export function randomSeed(): number {
   const r = new Uint32Array(1);
@@ -110,12 +215,12 @@ function mulberry32(seed: number) {
   };
 }
 
-/** A fresh obstacle-phase shuffle so repeat races feel different without redesigning the course. */
-export function levelForSeed(seed: number): Level {
+/** A fresh obstacle-phase shuffle on top of `course`, so a repeated course still feels different. */
+export function levelForSeed(course: Level, seed: number): Level {
   const rnd = mulberry32(seed);
   return {
-    ...BASE_LEVEL,
-    obstacles: BASE_LEVEL.obstacles.map((o) => (o.type === 'static' ? o : { ...o, phase: rnd() * Math.PI * 2 })),
+    ...course,
+    obstacles: course.obstacles.map((o) => (o.type === 'static' ? o : { ...o, phase: rnd() * Math.PI * 2 })),
   };
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Crown, Flag, Trophy, Zap } from 'lucide-react';
 import { Button } from '@/components/ui';
-import { PLAYER_COLORS, RACE_TIME_CAP_MS } from './wobbleLogic';
+import { COURSES, PLAYER_COLORS, RACE_TIME_CAP_MS } from './wobbleLogic';
 import { useWobbleGame, type WobblePlayer } from './useWobbleGame';
 import { WobbleCanvas } from './WobbleCanvas';
 
@@ -52,6 +52,7 @@ export function WobbleGame({ channel, isHost, myKey, playerKeys, playerNames, on
               <Racing state={state} level={level} myKey={myKey} getNow={getNow} getRemotePositions={getRemotePositions} getStunUntil={getStunUntil} drainThrows={drainThrows} actions={actions} />
             )}
             {state.phase === 'results' && <Results state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
+            {state.phase === 'tournament' && <Tournament state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
           </>
         )}
       </div>
@@ -64,6 +65,7 @@ const cardCls = 'rounded-3xl bg-card p-5 shadow-soft ring-1 ring-border/60';
 // ---------------------------------------------------------------- lobby
 
 function Lobby({ state, isHost, myKey, actions, onLeave }: { state: ReturnType<typeof useWobbleGame>['state']; isHost: boolean; myKey: string; actions: ReturnType<typeof useWobbleGame>['actions']; onLeave?: () => void }) {
+  const [rounds, setRounds] = useState(3);
   if (!state) return null;
   const connected = state.players.filter((p) => p.connected);
   return (
@@ -73,7 +75,7 @@ function Lobby({ state, isHost, myKey, actions, onLeave }: { state: ReturnType<t
           <Zap className="h-10 w-10" />
         </motion.div>
         <h2 className="text-4xl font-black">Wobble Race</h2>
-        <p className="text-muted-foreground">Run, jump, dodge the wrecking balls — first across the line wins the round</p>
+        <p className="text-muted-foreground">Run, jump, dodge the wrecking balls — first across the line wins each round</p>
       </div>
 
       <div className={`${cardCls} space-y-3`}>
@@ -89,9 +91,38 @@ function Lobby({ state, isHost, myKey, actions, onLeave }: { state: ReturnType<t
         </div>
       </div>
 
+      <div className={`${cardCls} space-y-3`}>
+        <p className="text-sm font-bold text-muted-foreground">Tracks ({rounds} round{rounds === 1 ? '' : 's'})</p>
+        <div className="flex justify-center gap-3">
+          {Array.from({ length: rounds }).map((_, i) => {
+            const c = COURSES[i % COURSES.length];
+            return (
+              <span key={i} className="flex flex-col items-center gap-1 rounded-2xl bg-muted/60 px-3 py-2">
+                <span className="text-2xl">{c.theme.icon}</span>
+                <span className="max-w-16 truncate text-[11px] font-bold text-muted-foreground">{c.name}</span>
+              </span>
+            );
+          })}
+        </div>
+        {isHost && (
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {[3, 5].map((n) => (
+              <button
+                key={n}
+                onClick={() => setRounds(n)}
+                className={`h-12 rounded-2xl text-base font-extrabold transition-all active:scale-95 ${rounds === n ? 'text-white shadow-md' : 'bg-muted hover:bg-muted/70'}`}
+                style={rounds === n ? { background: purple } : undefined}
+              >
+                {n} rounds
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {isHost ? (
-        <Button onClick={actions.start} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: purple }}>
-          Start Race
+        <Button onClick={() => actions.start(rounds)} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: purple }}>
+          Start Tournament
         </Button>
       ) : (
         <p className="flex items-center justify-center gap-2 py-3 font-bold text-muted-foreground">
@@ -174,6 +205,14 @@ function Racing({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between px-1 text-sm font-bold text-muted-foreground">
+        <span>
+          Round <span className="tabular-nums">{state.raceNum}</span>/<span className="tabular-nums">{state.totalRounds}</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          {level.theme.icon} {level.name}
+        </span>
+      </div>
       <div className={`${cardCls} flex items-center gap-4 py-3`}>
         <div className="flex-1">
           <div className="h-2.5 overflow-hidden rounded-full bg-muted">
@@ -250,6 +289,8 @@ function Results({
   }, [state]);
 
   const totalRanked = useMemo(() => [...state.players].sort((a, b) => (state.scores[b.key] ?? 0) - (state.scores[a.key] ?? 0)), [state]);
+  const isLast = state.raceNum >= state.totalRounds;
+  const nextCourse = COURSES[state.raceNum % COURSES.length];
 
   return (
     <div className="space-y-5 pt-2">
@@ -257,7 +298,9 @@ function Results({
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.6 }}>
           <Trophy className="mx-auto h-12 w-12 text-amber-500" />
         </motion.div>
-        <h2 className="text-3xl font-black">Race {state.raceNum} Results</h2>
+        <h2 className="text-3xl font-black">
+          Round {state.raceNum}/{state.totalRounds} Results
+        </h2>
       </div>
 
       <div className={`${cardCls} space-y-2`}>
@@ -286,18 +329,108 @@ function Results({
         ))}
       </div>
 
+      {!isLast && (
+        <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-muted-foreground">
+          Next up: {nextCourse.theme.icon} {nextCourse.name}
+        </p>
+      )}
+
       {isHost ? (
-        <Button onClick={actions.playAgain} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: purple }}>
-          Race Again
+        <Button onClick={actions.nextRace} className="h-14 w-full rounded-2xl text-lg font-black" style={{ background: purple }}>
+          {isLast ? 'See Final Results' : 'Next Race'}
         </Button>
       ) : (
-        <p className="flex items-center justify-center gap-2 py-2 text-sm font-bold text-muted-foreground">Waiting for the host to start the next race</p>
+        <p className="flex items-center justify-center gap-2 py-2 text-sm font-bold text-muted-foreground">
+          Waiting for the host to {isLast ? 'finish up' : 'start the next race'}
+        </p>
       )}
       {onLeave && (
         <Button variant="secondary" onClick={onLeave} className="h-12 w-full rounded-2xl font-extrabold">
           Back to Games
         </Button>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- tournament (final podium)
+
+function Tournament({
+  state,
+  myKey,
+  isHost,
+  actions,
+  onLeave,
+}: {
+  state: NonNullable<ReturnType<typeof useWobbleGame>['state']>;
+  myKey: string;
+  isHost: boolean;
+  actions: ReturnType<typeof useWobbleGame>['actions'];
+  onLeave?: () => void;
+}) {
+  const ranked = useMemo(() => [...state.players].filter((p) => p.key in state.scores).sort((a, b) => (state.scores[b.key] ?? 0) - (state.scores[a.key] ?? 0)), [state]);
+  const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean) as WobblePlayer[];
+  const heights: Record<number, string> = { 0: 'h-32', 1: 'h-24', 2: 'h-16' };
+  const rankOf = (p: WobblePlayer) => ranked.indexOf(p);
+  const winner = ranked[0];
+
+  return (
+    <div className="space-y-6 pt-2">
+      <div className="space-y-1 text-center">
+        <motion.div initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', bounce: 0.6 }}>
+          <Trophy className="mx-auto h-14 w-14 text-amber-500" />
+        </motion.div>
+        <h2 className="text-3xl font-black">{winner?.key === myKey ? 'You won the tournament! 🎉' : winner ? `${winner.name} wins the tournament!` : 'Tournament complete'}</h2>
+      </div>
+
+      <div className="flex items-end justify-center gap-3">
+        {podium.map((p, i) => {
+          const r = rankOf(p);
+          return (
+            <motion.div key={p.key} initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + (2 - r) * 0.3, type: 'spring', damping: 18 }} className="flex w-24 flex-col items-center gap-1">
+              {r === 0 && <Crown className="h-6 w-6 text-amber-500" />}
+              <Avatar p={p} me={p.key === myKey} size={r === 0 ? 64 : 52} />
+              <span className="max-w-full truncate text-sm font-extrabold">{p.key === myKey ? 'You' : p.name}</span>
+              <div className={`${heights[r]} flex w-full items-start justify-center rounded-t-2xl pt-2 text-2xl font-black text-white`} style={{ background: colorOf(p) }}>
+                <span className="tabular-nums">{state.scores[p.key] ?? 0}</span>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <div className={`${cardCls} space-y-3`}>
+        <p className="text-sm font-bold text-muted-foreground">Round-by-round points</p>
+        {ranked.map((p, i) => (
+          <div key={p.key} className="flex items-center gap-3">
+            <span className="w-5 text-center text-sm font-black tabular-nums text-muted-foreground">{i + 1}</span>
+            <Avatar p={p} me={p.key === myKey} size={30} />
+            <div className="flex flex-1 flex-wrap gap-1.5">
+              {(state.history[p.key] ?? []).map((pts, r) => (
+                <span key={r} className="flex h-7 min-w-9 items-center justify-center rounded-lg px-1.5 text-xs font-black tabular-nums" style={{ background: pts > 0 ? `${colorOf(p)}26` : undefined, color: pts > 0 ? colorOf(p) : undefined }}>
+                  {pts}
+                </span>
+              ))}
+            </div>
+            <span className="text-lg font-black tabular-nums">{state.scores[p.key] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-2">
+        {isHost ? (
+          <Button onClick={actions.restartTournament} className="h-14 rounded-2xl text-lg font-black" style={{ background: purple }}>
+            New Tournament
+          </Button>
+        ) : (
+          <p className="flex items-center justify-center gap-2 py-2 text-sm font-bold text-muted-foreground">Waiting for the host</p>
+        )}
+        {onLeave && (
+          <Button variant="secondary" onClick={onLeave} className="h-12 rounded-2xl font-extrabold">
+            Back to Games
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
