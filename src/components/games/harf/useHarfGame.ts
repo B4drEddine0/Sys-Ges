@@ -11,30 +11,7 @@ import {
   voteKey,
   type HarfState,
 } from './harfLogic';
-
-// The room channel is created (and already subscribed) by OnlineGameWrapper, and
-// supabase-js has no way to remove a `.on()` binding. So bindings are registered once
-// per channel/event and fan out to a Set of listeners we can add to and remove from —
-// otherwise React StrictMode remounts would stack duplicate handlers.
-const registry = new WeakMap<object, Map<string, Set<(payload: any) => void>>>();
-function listen(channel: any, event: string, fn: (payload: any) => void) {
-  let events = registry.get(channel);
-  if (!events) {
-    events = new Map();
-    registry.set(channel, events);
-  }
-  let set = events.get(event);
-  if (!set) {
-    const created = new Set<(payload: any) => void>();
-    set = created;
-    events.set(event, created);
-    channel.on('broadcast', { event }, (msg: any) => created.forEach((f) => f(msg.payload)));
-  }
-  set.add(fn);
-  return () => {
-    set!.delete(fn);
-  };
-}
+import { listen } from '../shared/channelBus';
 
 interface Options {
   channel: any;
