@@ -159,6 +159,8 @@ export interface PlayerPhys {
   vy: number;
   grounded: boolean;
   rideId: string | null;
+  /** Exact rect of the ridden platform as of the end of last frame — see stepPlayer. */
+  rideRect: { x: number; y: number } | null;
   hitCooldownUntil: number;
   checkpoint: { x: number; y: number };
   finished: boolean;
@@ -172,6 +174,7 @@ export function freshPlayer(level: Level): PlayerPhys {
     vy: 0,
     grounded: false,
     rideId: null,
+    rideRect: null,
     hitCooldownUntil: 0,
     checkpoint: { ...level.checkpoints[0] },
     finished: false,
@@ -197,16 +200,16 @@ export function stepPlayer(prev: PlayerPhys, input: Input, dt: number, t: number
     .map((o) => ({ o, rect: platformRectAt(o, t) }))
     .filter((r): r is { o: Obstacle; rect: { x: number; y: number; w: number; h: number } } => !!r.rect);
 
-  // Carry the player with whatever moving platform they're standing on.
-  if (p.grounded && p.rideId) {
+  // Carry the player with whatever moving platform they're standing on, using the exact
+  // rect we stored at the end of last frame rather than recomputing "last frame's
+  // position" from t - dt: t tracks wall-clock race time, dt tracks the render loop's own
+  // frame timing, and those two clocks don't agree to sub-millisecond precision — on a
+  // fast-oscillating platform that tiny mismatch read as constant rubber-banding.
+  if (p.grounded && p.rideId && p.rideRect) {
     const ride = rects.find((r) => r.o.id === p.rideId);
-    const prevRide = level.obstacles.find((o) => o.id === p.rideId);
-    if (ride && prevRide) {
-      const prevRect = platformRectAt(prevRide, t - dt);
-      if (prevRect) {
-        p.x += ride.rect.x - prevRect.x;
-        p.y += ride.rect.y - prevRect.y;
-      }
+    if (ride) {
+      p.x += ride.rect.x - p.rideRect.x;
+      p.y += ride.rect.y - p.rideRect.y;
     } else {
       p.rideId = null;
     }
@@ -321,6 +324,10 @@ export function stepPlayer(prev: PlayerPhys, input: Input, dt: number, t: number
   }
 
   if (p.x >= FINISH_X) p.finished = true;
+
+  // Snapshot whatever platform we're riding now (or clear it) so next frame's carry
+  // step above has an exact, non-approximated baseline to diff against.
+  p.rideRect = p.rideId ? (rects.find((r) => r.o.id === p.rideId)?.rect ?? null) : null;
 
   return p;
 }

@@ -81,6 +81,9 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
   // performance.now()-domain deadline until which a 'wobble_hit' targeting me holds my
   // controls locked — read imperatively by the canvas loop, same pattern as remotes above.
   const stunUntilRef = useRef(0);
+  // Purely cosmetic "someone threw a shove" events (hit or miss) from other players,
+  // queued up for the canvas to drain and animate every frame.
+  const throwsRef = useRef<Array<{ from: string; x: number; y: number; facing: 1 | -1; hit: boolean }>>([]);
 
   const roster = useMemo(
     () => playerKeys.map((key, i) => ({ key, name: playerNames[i] && playerNames[i] !== 'Player' ? playerNames[i] : `Player ${i + 1}` })),
@@ -230,6 +233,14 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
         stunUntilRef.current = performance.now() + (typeof p.stunMs === 'number' ? p.stunMs : STUN_MS);
       }),
     );
+    // Shove throws (hit or miss) are purely cosmetic for everyone but the thrower, who
+    // already animates their own throw instantly, client-side, with no round-trip.
+    offs.push(
+      listen(channel, 'wobble_throw', (p: any) => {
+        if (p.from === myKey) return;
+        throwsRef.current.push({ from: p.from, x: p.x, y: p.y, facing: p.facing, hit: !!p.hit });
+      }),
+    );
     return () => offs.forEach((f) => f());
   }, [channel, isHost, myKey, send]);
 
@@ -261,7 +272,14 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
   );
 
   const sendHit = useCallback((targetKey: string) => send('wobble_hit', { from: myKey, target: targetKey, stunMs: STUN_MS }), [send, myKey]);
+  const sendThrow = useCallback((x: number, y: number, facing: 1 | -1, hit: boolean) => send('wobble_throw', { from: myKey, x, y, facing, hit }), [send, myKey]);
   const getStunUntil = useCallback(() => stunUntilRef.current, []);
+  /** Drains (and clears) queued incoming throw-fx — imperative so it doesn't trigger a re-render. */
+  const drainThrows = useCallback(() => {
+    const out = throwsRef.current;
+    throwsRef.current = [];
+    return out;
+  }, []);
 
   const getNow = useCallback(() => Date.now() + offsetRef.current, []);
   const level = useMemo(() => (state?.seed ? levelForSeed(state.seed) : BASE_LEVEL), [state?.seed]);
@@ -285,6 +303,7 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
     getNow,
     getRemotePositions,
     getStunUntil,
-    actions: { start, playAgain, reportFinish, sendPos, sendHit },
+    drainThrows,
+    actions: { start, playAgain, reportFinish, sendPos, sendHit, sendThrow },
   };
 }

@@ -31,8 +31,10 @@ interface Props {
   getNow: () => number;
   getRemotePositions: () => Record<string, { x: number; y: number; facing: 1 | -1; anim: RemoteSnap['anim'] }>;
   getStunUntil: () => number;
+  drainThrows: () => Array<{ from: string; x: number; y: number; facing: 1 | -1; hit: boolean }>;
   sendPos: (x: number, y: number, facing: 1 | -1, anim: RemoteSnap['anim']) => void;
   sendHit: (targetKey: string) => void;
+  sendThrow: (x: number, y: number, facing: 1 | -1, hit: boolean) => void;
   onFinish: (timeMs: number) => void;
   onHud: (info: { progress: number; rank: number; elapsedMs: number }) => void;
 }
@@ -44,7 +46,9 @@ const VIEW_H_FULL = 620;
 const SKY_TOP = '#1e1b4b';
 const SKY_BOTTOM = '#4338ca';
 
-export function WobbleCanvas({ level, myKey, myColor, myName, players, active, raceStartAt, getNow, getRemotePositions, getStunUntil, sendPos, sendHit, onFinish, onHud }: Props) {
+const THROW_FX_MS = 420;
+
+export function WobbleCanvas({ level, myKey, myColor, myName, players, active, raceStartAt, getNow, getRemotePositions, getStunUntil, drainThrows, sendPos, sendHit, sendThrow, onFinish, onHud }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef({ left: false, right: false, jump: false });
@@ -57,6 +61,10 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
   const wasStunnedRef = useRef(false);
   const lastFacingRef = useRef<1 | -1>(1);
   const throwCooldownUntilRef = useRef(0);
+  // Visible "something flew" effects — both my own throws (shown instantly, no network
+  // round-trip) and other players' (arrive via drainThrows()). Canvas-drawn, not React
+  // state, since they need per-frame position updates.
+  const fxRef = useRef<Array<{ x: number; y: number; facing: 1 | -1; start: number; isMine: boolean; hit: boolean }>>([]);
   const dprRef = useRef(1);
   const sizeRef = useRef({ w: 960, h: VIEW_H_NORMAL });
   const camRef = useRef({ x: level.spawn.x, y: level.spawn.y - PLAYER_H });
@@ -65,6 +73,7 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [throwReady, setThrowReady] = useState(true);
+  const [justThrew, setJustThrew] = useState(false);
   const [hitMsg, setHitMsg] = useState<string | null>(null);
   const hitMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -83,9 +92,27 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
 
   const tryThrow = () => {
     const now = performance.now();
-    if (now < throwCooldownUntilRef.current || now < getStunUntil() || finishedRef.current) return;
+    if (now < throwCooldownUntilRef.current) return; // still on cooldown — silently ignored, button already shows this
+    if (finishedRef.current) return;
     const p = playerRef.current;
     const facing = lastFacingRef.current;
+
+    throwCooldownUntilRef.current = now + THROW_COOLDOWN_MS;
+    setThrowReady(false);
+    setTimeout(() => setThrowReady(true), THROW_COOLDOWN_MS);
+
+    // Always-visible feedback the moment you press, whether or not it connects — this is
+    // what was missing before: pressing F looked identical to pressing nothing.
+    setJustThrew(true);
+    setTimeout(() => setJustThrew(false), 220);
+
+    if (now < getStunUntil()) {
+      if (hitMsgTimer.current) clearTimeout(hitMsgTimer.current);
+      setHitMsg("😵 Can't shove while dazed!");
+      hitMsgTimer.current = setTimeout(() => setHitMsg(null), 1400);
+      return;
+    }
+
     const remote = getRemotePositions();
     let bestKey: string | null = null;
     let bestDist = Infinity;
@@ -101,15 +128,18 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
         bestKey = key;
       }
     }
-    throwCooldownUntilRef.current = now + THROW_COOLDOWN_MS;
-    setThrowReady(false);
-    setTimeout(() => setThrowReady(true), THROW_COOLDOWN_MS);
+
+    fxRef.current.push({ x: p.x, y: p.y, facing, start: now, isMine: true, hit: !!bestKey });
+    sendThrow(p.x, p.y, facing, !!bestKey);
+
+    if (hitMsgTimer.current) clearTimeout(hitMsgTimer.current);
     if (bestKey) {
       sendHit(bestKey);
-      if (hitMsgTimer.current) clearTimeout(hitMsgTimer.current);
       setHitMsg(`💥 Tripped ${nameOf(bestKey)}!`);
-      hitMsgTimer.current = setTimeout(() => setHitMsg(null), 1600);
+    } else {
+      setHitMsg('💨 Missed — no one in range');
     }
+    hitMsgTimer.current = setTimeout(() => setHitMsg(null), 1600);
   };
 
   // Keyboard controls.
@@ -257,7 +287,10 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
         camY += (Math.random() - 0.5) * 6 * shakeRef.current;
       }
 
-      render(ctx, level, p2, finishedRef.current, stunned, t, activeRef.current, myKey, getRemotePositions(), nameOf, colorOf, myColor, sizeRef.current, dprRef.current, camX, camY, viewWWorld, viewHWorld);
+      for (const incoming of drainThrows()) fxRef.current.push({ ...incoming, start: now, isMine: false, hit: false });
+      fxRef.current = fxRef.current.filter((fx) => now - fx.start < THROW_FX_MS);
+
+      render(ctx, level, p2, finishedRef.current, stunned, t, activeRef.current, myKey, getRemotePositions(), nameOf, colorOf, myColor, sizeRef.current, dprRef.current, camX, camY, viewWWorld, viewHWorld, fxRef.current, now);
       if (shakeRef.current > 0) shakeRef.current = Math.max(0, shakeRef.current - dt);
     };
 
@@ -300,7 +333,10 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
       </button>
 
       {hitMsg && (
-        <div className="pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full bg-black/55 px-4 py-1.5 text-sm font-extrabold text-white backdrop-blur-sm">
+        <div
+          key={hitMsg}
+          className="pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-150 rounded-full bg-black/60 px-4 py-2 text-base font-extrabold text-white shadow-lg backdrop-blur-sm"
+        >
           {hitMsg}
         </div>
       )}
@@ -314,19 +350,22 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
             ›
           </button>
         </div>
-        <button
-          onPointerDown={(e) => {
-            e.preventDefault();
-            tryThrow();
-          }}
-          disabled={!throwReady}
-          aria-label="Shove"
-          title="Shove the nearest racer ahead of you (F)"
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full text-white backdrop-blur transition-opacity disabled:opacity-35"
-          style={{ background: throwReady ? 'rgba(244,63,94,0.85)' : 'rgba(0,0,0,0.35)' }}
-        >
-          <Bomb className="h-6 w-6" />
-        </button>
+        <div className="pointer-events-auto relative">
+          {justThrew && <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-rose-500/70" />}
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              tryThrow();
+            }}
+            disabled={!throwReady}
+            aria-label="Shove"
+            title="Shove the nearest racer ahead of you (F)"
+            className={`flex h-14 w-14 items-center justify-center rounded-full text-white backdrop-blur transition-all disabled:opacity-35 ${justThrew ? 'scale-90' : 'scale-100'}`}
+            style={{ background: throwReady ? 'rgba(244,63,94,0.85)' : 'rgba(0,0,0,0.35)' }}
+          >
+            <Bomb className="h-6 w-6" />
+          </button>
+        </div>
         <button {...bind('jump')} aria-label="Jump" className="pointer-events-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/25 text-base font-black uppercase text-white backdrop-blur active:bg-white/40 md:hidden">
           Jump
         </button>
@@ -354,6 +393,8 @@ function render(
   camY: number,
   viewW: number,
   viewH: number,
+  fx: Array<{ x: number; y: number; facing: 1 | -1; start: number; isMine: boolean; hit: boolean }>,
+  now: number,
 ) {
   const { w, h } = size;
   if (w === 0 || h === 0) return;
@@ -466,6 +507,32 @@ function render(
   // Local player on top.
   const myAnim: RemoteSnap['anim'] = meFinished ? 'finished' : meStunned ? 'stunned' : !me.grounded ? (me.hitCooldownUntil > t ? 'hit' : 'air') : Math.abs(me.vx) > 20 ? 'run' : 'idle';
   drawPlayer(ctx, me.x, me.y, colorOf(myKey, myColor), nameOf(myKey), me.vx < 0 ? -1 : 1, myAnim, true);
+
+  // Thrown shoves — a little bomb arcing from the thrower, with a burst where it lands.
+  for (const f of fx) {
+    const k = Math.min(1, (now - f.start) / THROW_FX_MS);
+    const arcX = f.x + f.facing * THROW_RANGE * k;
+    const arcY = f.y - PLAYER_H / 2 - Math.sin(k * Math.PI) * 60;
+    ctx.save();
+    ctx.translate(arcX, arcY);
+    ctx.rotate(k * 10);
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#1f2937';
+    ctx.fill();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+    if (k > 0.85) {
+      const burst = (k - 0.85) / 0.15;
+      ctx.beginPath();
+      ctx.arc(arcX, arcY, 10 + burst * 26, 0, Math.PI * 2);
+      ctx.strokeStyle = f.hit ? `rgba(244,63,94,${1 - burst})` : `rgba(148,163,184,${1 - burst})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
 
   ctx.restore();
   ctx.restore();
