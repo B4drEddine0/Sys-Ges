@@ -26,6 +26,14 @@ export const RACE_TIME_CAP_MS = 90_000;
 export const COUNTDOWN_MS = 3400;
 export const POINTS_BY_RANK = [8, 5, 3, 2, 1, 1];
 
+// Shove power-up: a short-range tag on the nearest racer ahead of you that briefly
+// locks their controls. It's a status effect on their in-game character only (like a
+// shell in a kart game) — nothing about it touches another player's browser/tab.
+export const THROW_RANGE = 260;
+export const THROW_VERTICAL_TOLERANCE = 90;
+export const THROW_COOLDOWN_MS = 4000;
+export const STUN_MS = 1700;
+
 export type Obstacle =
   | { id: string; type: 'static'; x: number; y: number; w: number; h: number }
   | { id: string; type: 'moving'; x: number; y: number; w: number; h: number; axis: 'x' | 'y'; range: number; speed: number; phase: number }

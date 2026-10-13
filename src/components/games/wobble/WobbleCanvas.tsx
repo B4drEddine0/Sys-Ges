@@ -1,10 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Bomb, Maximize2, Minimize2 } from 'lucide-react';
 import {
   FINISH_X,
   PIT_Y,
   PLAYER_COLORS,
+  PLAYER_H,
   PLAYER_RADIUS,
-  WORLD_H,
+  THROW_COOLDOWN_MS,
+  THROW_RANGE,
+  THROW_VERTICAL_TOLERANCE,
   WORLD_W,
   freshPlayer,
   pendulumBallAt,
@@ -26,16 +30,21 @@ interface Props {
   raceStartAt: number;
   getNow: () => number;
   getRemotePositions: () => Record<string, { x: number; y: number; facing: 1 | -1; anim: RemoteSnap['anim'] }>;
+  getStunUntil: () => number;
   sendPos: (x: number, y: number, facing: 1 | -1, anim: RemoteSnap['anim']) => void;
+  sendHit: (targetKey: string) => void;
   onFinish: (timeMs: number) => void;
   onHud: (info: { progress: number; rank: number; elapsedMs: number }) => void;
 }
 
-const VIEW_H = 420;
+// How many world units are visible vertically — bigger in fullscreen so the extra
+// screen real estate actually shows more of the course instead of just zooming in.
+const VIEW_H_NORMAL = 460;
+const VIEW_H_FULL = 620;
 const SKY_TOP = '#1e1b4b';
 const SKY_BOTTOM = '#4338ca';
 
-export function WobbleCanvas({ level, myKey, myColor, myName, players, active, raceStartAt, getNow, getRemotePositions, sendPos, onFinish, onHud }: Props) {
+export function WobbleCanvas({ level, myKey, myColor, myName, players, active, raceStartAt, getNow, getRemotePositions, getStunUntil, sendPos, sendHit, onFinish, onHud }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef({ left: false, right: false, jump: false });
@@ -45,8 +54,19 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
   const lastSendRef = useRef(0);
   const lastHudRef = useRef(0);
   const prevCooldownRef = useRef(0);
+  const wasStunnedRef = useRef(false);
+  const lastFacingRef = useRef<1 | -1>(1);
+  const throwCooldownUntilRef = useRef(0);
   const dprRef = useRef(1);
-  const sizeRef = useRef({ w: 960, h: VIEW_H });
+  const sizeRef = useRef({ w: 960, h: VIEW_H_NORMAL });
+  const camRef = useRef({ x: level.spawn.x, y: level.spawn.y - PLAYER_H });
+  const isFullscreenRef = useRef(false);
+  const viewHWorldRef = useRef(VIEW_H_NORMAL);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [throwReady, setThrowReady] = useState(true);
+  const [hitMsg, setHitMsg] = useState<string | null>(null);
+  const hitMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Kept live via refs (not closed over) so a mid-race roster update (reconnect, late
   // presence sync) shows up without having to tear down and restart the physics loop.
@@ -61,13 +81,45 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
     return PLAYER_COLORS[(key === myKey ? myColor : p?.color ?? fallback) % PLAYER_COLORS.length];
   };
 
+  const tryThrow = () => {
+    const now = performance.now();
+    if (now < throwCooldownUntilRef.current || now < getStunUntil() || finishedRef.current) return;
+    const p = playerRef.current;
+    const facing = lastFacingRef.current;
+    const remote = getRemotePositions();
+    let bestKey: string | null = null;
+    let bestDist = Infinity;
+    for (const key of activeRef.current) {
+      if (key === myKey) continue;
+      const r = remote[key];
+      if (!r) continue;
+      const dx = (r.x - p.x) * facing;
+      if (dx < 0 || dx > THROW_RANGE) continue;
+      if (Math.abs(r.y - p.y) > THROW_VERTICAL_TOLERANCE) continue;
+      if (dx < bestDist) {
+        bestDist = dx;
+        bestKey = key;
+      }
+    }
+    throwCooldownUntilRef.current = now + THROW_COOLDOWN_MS;
+    setThrowReady(false);
+    setTimeout(() => setThrowReady(true), THROW_COOLDOWN_MS);
+    if (bestKey) {
+      sendHit(bestKey);
+      if (hitMsgTimer.current) clearTimeout(hitMsgTimer.current);
+      setHitMsg(`💥 Tripped ${nameOf(bestKey)}!`);
+      hitMsgTimer.current = setTimeout(() => setHitMsg(null), 1600);
+    }
+  };
+
   // Keyboard controls.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD', 'ArrowUp', 'KeyW', 'Space'].includes(e.code)) e.preventDefault();
+      if (['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD', 'ArrowUp', 'KeyW', 'Space', 'KeyF'].includes(e.code)) e.preventDefault();
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') inputRef.current.left = true;
       if (e.code === 'ArrowRight' || e.code === 'KeyD') inputRef.current.right = true;
       if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') inputRef.current.jump = true;
+      if (e.code === 'KeyF' && !e.repeat) tryThrow();
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') inputRef.current.left = false;
@@ -80,30 +132,51 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Canvas sizing (devicePixelRatio aware, resizes with its wrapper).
+  // Fullscreen toggle — same requestFullscreen/exitFullscreen pattern as Pong.
+  useEffect(() => {
+    const onChange = () => {
+      const full = document.fullscreenElement === wrapRef.current;
+      isFullscreenRef.current = full;
+      setIsFullscreen(full);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = () => {
+    if (!wrapRef.current) return;
+    if (!document.fullscreenElement) wrapRef.current.requestFullscreen().catch(() => {});
+    else document.exitFullscreen();
+  };
+
+  // Canvas sizing (devicePixelRatio aware, resizes with its wrapper and with fullscreen).
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const resize = () => {
       const w = wrap.clientWidth;
-      const h = VIEW_H;
+      const h = wrap.clientHeight;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       dprRef.current = dpr;
       sizeRef.current = { w, h };
+      viewHWorldRef.current = isFullscreenRef.current ? VIEW_H_FULL : VIEW_H_NORMAL;
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
-      canvas.style.height = `${h}px`;
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
-    return () => ro.disconnect();
+    document.addEventListener('fullscreenchange', resize);
+    return () => {
+      ro.disconnect();
+      document.removeEventListener('fullscreenchange', resize);
+    };
   }, []);
 
-  // Main loop: local physics + render + throttled network sync.
+  // Main loop: local physics + camera + render + throttled network sync.
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -118,14 +191,24 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
 
       const elapsedMs = Math.max(0, getNow() - raceStartAt);
       const t = elapsedMs / 1000;
-      const p = playerRef.current;
+      const stunned = now < getStunUntil();
+
+      if (stunned && !wasStunnedRef.current) {
+        // A shove just landed — a little comedic stumble, on top of the control lock.
+        const p = playerRef.current;
+        p.vx = (Math.random() < 0.5 ? -1 : 1) * 150;
+        p.vy = Math.min(p.vy, -220);
+        p.grounded = false;
+        p.rideId = null;
+      }
+      wasStunnedRef.current = stunned;
 
       if (!finishedRef.current) {
-        const next = stepPlayer(p, inputRef.current, dt, t, level);
+        const effectiveInput = stunned ? { left: false, right: false, jump: false } : inputRef.current;
+        const next = stepPlayer(playerRef.current, effectiveInput, dt, t, level);
         playerRef.current = next;
-        if (next.hitCooldownUntil > prevCooldownRef.current + 0.01) {
-          shakeRef.current = 0.22;
-        }
+        if (Math.abs(next.vx) > 20) lastFacingRef.current = next.vx > 0 ? 1 : -1;
+        if (next.hitCooldownUntil > prevCooldownRef.current + 0.01) shakeRef.current = 0.22;
         prevCooldownRef.current = next.hitCooldownUntil;
         if (next.finished) {
           finishedRef.current = true;
@@ -133,29 +216,48 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
         }
       }
 
+      const p2 = playerRef.current;
       if (now - lastSendRef.current > 75) {
         lastSendRef.current = now;
-        const p2 = playerRef.current;
         const anim: RemoteSnap['anim'] = finishedRef.current
           ? 'finished'
-          : !p2.grounded
-            ? p2.hitCooldownUntil > t ? 'hit' : 'air'
-            : Math.abs(p2.vx) > 20
-              ? 'run'
-              : 'idle';
-        sendPos(p2.x, p2.y, p2.vx < -5 ? -1 : p2.vx > 5 ? 1 : (p.vx < 0 ? -1 : 1), anim);
+          : stunned
+            ? 'stunned'
+            : !p2.grounded
+              ? p2.hitCooldownUntil > t ? 'hit' : 'air'
+              : Math.abs(p2.vx) > 20
+                ? 'run'
+                : 'idle';
+        sendPos(p2.x, p2.y, lastFacingRef.current, anim);
       }
 
       if (now - lastHudRef.current > 180) {
         lastHudRef.current = now;
         const remote = getRemotePositions();
-        const xs = activeRef.current.map((k) => (k === myKey ? playerRef.current.x : remote[k]?.x ?? 0));
-        const myX = playerRef.current.x;
-        const rank = 1 + xs.filter((x) => x > myX).length;
-        onHud({ progress: Math.max(0, Math.min(1, myX / FINISH_X)), rank, elapsedMs });
+        const xs = activeRef.current.map((k) => (k === myKey ? p2.x : remote[k]?.x ?? 0));
+        const rank = 1 + xs.filter((x) => x > p2.x).length;
+        onHud({ progress: Math.max(0, Math.min(1, p2.x / FINISH_X)), rank, elapsedMs });
       }
 
-      render(ctx, level, playerRef.current, finishedRef.current, t, shakeRef.current, activeRef.current, myKey, getRemotePositions(), nameOf, colorOf, myColor, sizeRef.current, dprRef.current);
+      // Smoothly follow the local player — this is what actually fixes the camera only
+      // ever showing world-y 0..420 while the course lives around y 460-560+.
+      const viewHWorld = viewHWorldRef.current;
+      const { w, h } = sizeRef.current;
+      const viewWWorld = h > 0 ? viewHWorld * (w / h) : viewHWorld;
+      const targetX = Math.max(0, Math.min(Math.max(0, WORLD_W - viewWWorld), p2.x - viewWWorld / 2));
+      const targetY = Math.max(0, Math.min(Math.max(0, PIT_Y + 100 - viewHWorld), p2.y - PLAYER_H / 2 - viewHWorld * 0.58));
+      const follow = Math.min(1, dt * 6);
+      camRef.current.x += (targetX - camRef.current.x) * follow;
+      camRef.current.y += (targetY - camRef.current.y) * follow;
+
+      let camX = camRef.current.x;
+      let camY = camRef.current.y;
+      if (shakeRef.current > 0) {
+        camX += (Math.random() - 0.5) * 10 * shakeRef.current;
+        camY += (Math.random() - 0.5) * 6 * shakeRef.current;
+      }
+
+      render(ctx, level, p2, finishedRef.current, stunned, t, activeRef.current, myKey, getRemotePositions(), nameOf, colorOf, myColor, sizeRef.current, dprRef.current, camX, camY, viewWWorld, viewHWorld);
       if (shakeRef.current > 0) shakeRef.current = Math.max(0, shakeRef.current - dt);
     };
 
@@ -182,10 +284,29 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
   });
 
   return (
-    <div ref={wrapRef} className="relative w-full select-none touch-none overflow-hidden rounded-3xl shadow-soft" style={{ height: VIEW_H }}>
+    <div
+      ref={wrapRef}
+      className="relative w-full select-none touch-none overflow-hidden rounded-3xl bg-black shadow-soft"
+      style={{ height: isFullscreen ? '100vh' : VIEW_H_NORMAL }}
+    >
       <canvas ref={canvasRef} className="block h-full w-full" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex items-end justify-between px-3 md:hidden">
-        <div className="pointer-events-auto flex gap-2">
+
+      <button
+        onClick={toggleFullscreen}
+        title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        className="absolute right-3 top-3 z-40 rounded-xl bg-black/35 p-2 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/55 hover:text-white"
+      >
+        {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+      </button>
+
+      {hitMsg && (
+        <div className="pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full bg-black/55 px-4 py-1.5 text-sm font-extrabold text-white backdrop-blur-sm">
+          {hitMsg}
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex items-end justify-between px-3">
+        <div className="pointer-events-auto flex gap-2 md:hidden">
           <button {...bind('left')} aria-label="Left" className="flex h-16 w-16 items-center justify-center rounded-2xl bg-black/35 text-3xl font-black text-white backdrop-blur active:bg-black/55">
             ‹
           </button>
@@ -193,7 +314,20 @@ export function WobbleCanvas({ level, myKey, myColor, myName, players, active, r
             ›
           </button>
         </div>
-        <button {...bind('jump')} aria-label="Jump" className="pointer-events-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/25 text-base font-black uppercase text-white backdrop-blur active:bg-white/40">
+        <button
+          onPointerDown={(e) => {
+            e.preventDefault();
+            tryThrow();
+          }}
+          disabled={!throwReady}
+          aria-label="Shove"
+          title="Shove the nearest racer ahead of you (F)"
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full text-white backdrop-blur transition-opacity disabled:opacity-35"
+          style={{ background: throwReady ? 'rgba(244,63,94,0.85)' : 'rgba(0,0,0,0.35)' }}
+        >
+          <Bomb className="h-6 w-6" />
+        </button>
+        <button {...bind('jump')} aria-label="Jump" className="pointer-events-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/25 text-base font-black uppercase text-white backdrop-blur active:bg-white/40 md:hidden">
           Jump
         </button>
       </div>
@@ -206,8 +340,8 @@ function render(
   level: Level,
   me: PlayerPhys,
   meFinished: boolean,
+  meStunned: boolean,
   t: number,
-  shake: number,
   active: string[],
   myKey: string,
   remote: Record<string, { x: number; y: number; facing: 1 | -1; anim: RemoteSnap['anim'] }>,
@@ -216,16 +350,17 @@ function render(
   myColor: number,
   size: { w: number; h: number },
   dpr: number,
+  camX: number,
+  camY: number,
+  viewW: number,
+  viewH: number,
 ) {
   const { w, h } = size;
+  if (w === 0 || h === 0) return;
   ctx.save();
   ctx.scale(dpr, dpr);
 
-  const scale = h / VIEW_H;
-  const viewW = w / scale;
-  let camX = Math.max(0, Math.min(WORLD_W - viewW, me.x - viewW / 2));
-  if (shake > 0) camX += (Math.random() - 0.5) * 10 * shake;
-  const camY = shake > 0 ? (Math.random() - 0.5) * 6 * shake : 0;
+  const scale = h / viewH;
 
   ctx.clearRect(0, 0, w, h);
   ctx.save();
@@ -233,17 +368,17 @@ function render(
   ctx.translate(-camX, -camY);
 
   // Sky.
-  const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+  const sky = ctx.createLinearGradient(0, 0, 0, PIT_Y);
   sky.addColorStop(0, SKY_TOP);
   sky.addColorStop(1, SKY_BOTTOM);
   ctx.fillStyle = sky;
-  ctx.fillRect(camX, 0, viewW, VIEW_H);
+  ctx.fillRect(camX, camY, viewW, viewH);
 
   // Distant stars/dots for depth.
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  for (let i = 0; i < 40; i++) {
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  for (let i = 0; i < 60; i++) {
     const x = (i * 211) % WORLD_W;
-    const y = (i * 97) % 220;
+    const y = (i * 97) % 420;
     ctx.fillRect(x, y, 2, 2);
   }
 
@@ -312,12 +447,12 @@ function render(
 
   // Finish line.
   if (FINISH_X < camX + viewW + 60) {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 16; i++) {
       ctx.fillStyle = i % 2 === 0 ? '#f8fafc' : '#1e293b';
-      ctx.fillRect(FINISH_X, 160 + i * 28, 14, 28);
+      ctx.fillRect(FINISH_X, 120 + i * 28, 14, 28);
     }
     ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(FINISH_X + 6, 60, 4, 460);
+    ctx.fillRect(FINISH_X + 6, 60, 4, 560);
   }
 
   // Remote players.
@@ -329,7 +464,7 @@ function render(
   }
 
   // Local player on top.
-  const myAnim: RemoteSnap['anim'] = meFinished ? 'finished' : !me.grounded ? (me.hitCooldownUntil > t ? 'hit' : 'air') : Math.abs(me.vx) > 20 ? 'run' : 'idle';
+  const myAnim: RemoteSnap['anim'] = meFinished ? 'finished' : meStunned ? 'stunned' : !me.grounded ? (me.hitCooldownUntil > t ? 'hit' : 'air') : Math.abs(me.vx) > 20 ? 'run' : 'idle';
   drawPlayer(ctx, me.x, me.y, colorOf(myKey, myColor), nameOf(myKey), me.vx < 0 ? -1 : 1, myAnim, true);
 
   ctx.restore();
@@ -356,8 +491,8 @@ function drawPlayer(
   anim: RemoteSnap['anim'],
   isMe: boolean,
 ) {
-  const squash = anim === 'air' ? 0.9 : anim === 'hit' ? 1.15 : 1;
-  const bob = anim === 'run' ? Math.sin(performance.now() / 70) * 3 : 0;
+  const squash = anim === 'air' ? 0.9 : anim === 'hit' || anim === 'stunned' ? 1.15 : 1;
+  const bob = anim === 'run' ? Math.sin(performance.now() / 70) * 3 : anim === 'stunned' ? Math.sin(performance.now() / 45) * 4 : 0;
   const cy = y - PLAYER_RADIUS - bob;
 
   if (isMe) {
@@ -386,12 +521,28 @@ function drawPlayer(
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Eyes, offset toward facing direction.
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.arc(facing * 6, -4, 3, 0, Math.PI * 2);
-  ctx.arc(facing * 11, -4, 3, 0, Math.PI * 2);
-  ctx.fill();
+  if (anim === 'stunned') {
+    // Dazed stars circling the head instead of normal eyes.
+    for (let i = 0; i < 3; i++) {
+      const a = performance.now() / 180 + (i * Math.PI * 2) / 3;
+      const sx = Math.cos(a) * (PLAYER_RADIUS * 0.75);
+      const sy = -PLAYER_RADIUS * 0.6 + Math.sin(a) * (PLAYER_RADIUS * 0.3);
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(a);
+      ctx.font = '12px serif';
+      ctx.fillStyle = '#fde68a';
+      ctx.fillText('★', -5, 4);
+      ctx.restore();
+    }
+  } else {
+    // Eyes, offset toward facing direction.
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(facing * 6, -4, 3, 0, Math.PI * 2);
+    ctx.arc(facing * 11, -4, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 
   ctx.font = '700 12px Inter, sans-serif';

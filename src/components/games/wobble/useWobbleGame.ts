@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '../shared/channelBus';
-import { BASE_LEVEL, COUNTDOWN_MS, PLAYER_COLORS, POINTS_BY_RANK, RACE_TIME_CAP_MS, levelForSeed, randomSeed, type Level } from './wobbleLogic';
+import { BASE_LEVEL, COUNTDOWN_MS, PLAYER_COLORS, POINTS_BY_RANK, RACE_TIME_CAP_MS, STUN_MS, levelForSeed, randomSeed, type Level } from './wobbleLogic';
 
 export type WobblePhase = 'lobby' | 'countdown' | 'racing' | 'results';
 
@@ -56,7 +56,7 @@ export interface RemoteSnap {
   x: number;
   y: number;
   facing: 1 | -1;
-  anim: 'idle' | 'run' | 'air' | 'hit' | 'finished';
+  anim: 'idle' | 'run' | 'air' | 'hit' | 'stunned' | 'finished';
   renderX: number;
   renderY: number;
   fromX: number;
@@ -78,6 +78,9 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
   const stateRef = useRef<WobbleState | null>(state);
   const offsetRef = useRef(0);
   const remotes = useRef<Map<string, RemoteSnap>>(new Map());
+  // performance.now()-domain deadline until which a 'wobble_hit' targeting me holds my
+  // controls locked — read imperatively by the canvas loop, same pattern as remotes above.
+  const stunUntilRef = useRef(0);
 
   const roster = useMemo(
     () => playerKeys.map((key, i) => ({ key, name: playerNames[i] && playerNames[i] !== 'Player' ? playerNames[i] : `Player ${i + 1}` })),
@@ -220,6 +223,13 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
         });
       }),
     );
+    // Shove hits: every client listens, but only the targeted player acts on it.
+    offs.push(
+      listen(channel, 'wobble_hit', (p: any) => {
+        if (p.target !== myKey) return;
+        stunUntilRef.current = performance.now() + (typeof p.stunMs === 'number' ? p.stunMs : STUN_MS);
+      }),
+    );
     return () => offs.forEach((f) => f());
   }, [channel, isHost, myKey, send]);
 
@@ -250,6 +260,9 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
     [send, myKey],
   );
 
+  const sendHit = useCallback((targetKey: string) => send('wobble_hit', { from: myKey, target: targetKey, stunMs: STUN_MS }), [send, myKey]);
+  const getStunUntil = useCallback(() => stunUntilRef.current, []);
+
   const getNow = useCallback(() => Date.now() + offsetRef.current, []);
   const level = useMemo(() => (state?.seed ? levelForSeed(state.seed) : BASE_LEVEL), [state?.seed]);
 
@@ -271,6 +284,7 @@ export function useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames 
     level,
     getNow,
     getRemotePositions,
-    actions: { start, playAgain, reportFinish, sendPos },
+    getStunUntil,
+    actions: { start, playAgain, reportFinish, sendPos, sendHit },
   };
 }

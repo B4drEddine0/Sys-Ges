@@ -34,7 +34,7 @@ function Avatar({ p, me, size = 40 }: { p: WobblePlayer; me?: boolean; size?: nu
 }
 
 export function WobbleGame({ channel, isHost, myKey, playerKeys, playerNames, onLeave }: Props) {
-  const { state, level, getNow, getRemotePositions, actions } = useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames });
+  const { state, level, getNow, getRemotePositions, getStunUntil, actions } = useWobbleGame({ channel, isHost, myKey, playerKeys, playerNames });
 
   return (
     <MotionConfig reducedMotion="user">
@@ -49,7 +49,7 @@ export function WobbleGame({ channel, isHost, myKey, playerKeys, playerNames, on
             {state.phase === 'lobby' && <Lobby state={state} isHost={isHost} myKey={myKey} actions={actions} onLeave={onLeave} />}
             {state.phase === 'countdown' && state.raceStartAt && <Countdown raceStartAt={state.raceStartAt} getNow={getNow} />}
             {state.phase === 'racing' && state.raceStartAt && (
-              <Racing state={state} level={level} myKey={myKey} getNow={getNow} getRemotePositions={getRemotePositions} actions={actions} />
+              <Racing state={state} level={level} myKey={myKey} getNow={getNow} getRemotePositions={getRemotePositions} getStunUntil={getStunUntil} actions={actions} />
             )}
             {state.phase === 'results' && <Results state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
           </>
@@ -153,6 +153,7 @@ function Racing({
   myKey,
   getNow,
   getRemotePositions,
+  getStunUntil,
   actions,
 }: {
   state: NonNullable<ReturnType<typeof useWobbleGame>['state']>;
@@ -160,6 +161,7 @@ function Racing({
   myKey: string;
   getNow: () => number;
   getRemotePositions: ReturnType<typeof useWobbleGame>['getRemotePositions'];
+  getStunUntil: ReturnType<typeof useWobbleGame>['getStunUntil'];
   actions: ReturnType<typeof useWobbleGame>['actions'];
 }) {
   const [hud, setHud] = useState({ progress: 0, rank: 1, elapsedMs: 0 });
@@ -192,7 +194,9 @@ function Racing({
         raceStartAt={state.raceStartAt!}
         getNow={getNow}
         getRemotePositions={getRemotePositions}
+        getStunUntil={getStunUntil}
         sendPos={actions.sendPos}
+        sendHit={actions.sendHit}
         onFinish={(ms) => {
           if (done) return;
           setDone(true);
