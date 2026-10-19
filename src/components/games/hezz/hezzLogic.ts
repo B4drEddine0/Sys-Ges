@@ -114,6 +114,25 @@ export interface EngineState {
   discardPile: Card[]; // full discard history, top = last
 }
 
+/** The table before anyone has dealt a game — no engine/hands exist yet, just the room. */
+export function emptyLobbyState(): PublicState {
+  return {
+    phase: 'lobby',
+    order: [],
+    turnIndex: 0,
+    players: {},
+    discardTop: null,
+    drawCount: 0,
+    currentSuit: null,
+    pendingPenalty: 0,
+    pendingSkips: 0,
+    finishedOrder: [],
+    loser: null,
+    log: [],
+    seq: 0,
+  };
+}
+
 const LOG_LIMIT = 30;
 function pushLog(state: PublicState, text: string) {
   state.log = [...state.log, { id: `${state.seq}-${Math.random().toString(36).slice(2, 7)}`, text }].slice(-LOG_LIMIT);

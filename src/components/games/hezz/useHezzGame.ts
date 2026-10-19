@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '../shared/channelBus';
-import { applyAction, startGame, type Action, type Card, type EngineState, type PublicState, type Suit } from './hezzLogic';
+import { applyAction, emptyLobbyState, startGame, type Action, type Card, type EngineState, type PlayerMeta, type PublicState, type Suit } from './hezzLogic';
 
 const PLAYER_COLORS_COUNT = 8; // just needs to exceed any realistic table size
 
@@ -23,12 +23,15 @@ interface Options {
  * the same way Harf keeps answers hidden pre-reveal. It is NOT cryptographic privacy:
  * broadcast is still plain traffic on a shared channel, so a player who opens devtools
  * and reads raw websocket frames could see messages addressed to others. Real hidden
- * information would need an actual authoritative server, which this project doesn't have
- * (see the chat writeup accompanying this feature for what that would take).
+ * information would need an actual authoritative server, which this project doesn't have.
  */
 export function useHezzGame({ channel, isHost, myKey, playerKeys, playerNames }: Options) {
-  const [state, setState] = useState<PublicState | null>(null);
+  const [state, setState] = useState<PublicState | null>(() => (isHost ? emptyLobbyState() : null));
   const [myHand, setMyHand] = useState<Card[]>([]);
+  // `stateRef` is always the latest PublicState once the host has mounted (lobby or
+  // in-game). `engineRef` only exists once a game has actually been dealt — it holds the
+  // private hands/draw pile a lobby snapshot has no need for.
+  const stateRef = useRef<PublicState | null>(state);
   const engineRef = useRef<EngineState | null>(null);
   const lastSeqRef = useRef(-1);
 
@@ -37,39 +40,64 @@ export function useHezzGame({ channel, isHost, myKey, playerKeys, playerNames }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [playerKeys.join('|'), playerNames.join('|')],
   );
+  const rosterRef = useRef(roster);
+  rosterRef.current = roster;
 
   const send = useCallback((event: string, payload: unknown) => channel?.send({ type: 'broadcast', event, payload }), [channel]);
 
-  // ---------- host: owns the one true EngineState ----------
-  const broadcast = (engine: EngineState) => {
+  // ---------- host: single source of truth ----------
+  const commitPublic = (pub: PublicState) => {
+    stateRef.current = pub;
+    setState(pub);
+    send('hezz_state', pub);
+  };
+
+  const broadcastEngine = (engine: EngineState) => {
     engineRef.current = engine;
-    send('hezz_state', engine.public);
-    roster.forEach((r) => send('hezz_hand', { to: r.key, hand: engine.hands[r.key] ?? [] }));
+    commitPublic(engine.public);
+    rosterRef.current.forEach((r) => send('hezz_hand', { to: r.key, hand: engine.hands[r.key] ?? [] }));
     if (engine.hands[myKey]) setMyHand(engine.hands[myKey]);
-    setState(engine.public);
   };
 
   const hostStart = (handSize: 4 | 6) => {
     const names: Record<string, string> = {};
     const colors: Record<string, number> = {};
-    roster.forEach((r, i) => {
+    rosterRef.current.forEach((r, i) => {
       names[r.key] = r.name;
       colors[r.key] = i % PLAYER_COLORS_COUNT;
     });
-    const engine = startGame({ playerKeys: roster.map((r) => r.key), playerNames: names, playerColors: colors, handSize });
-    broadcast(engine);
+    const engine = startGame({ playerKeys: rosterRef.current.map((r) => r.key), playerNames: names, playerColors: colors, handSize });
+    broadcastEngine(engine);
   };
 
   const hostApply = (action: Action) => {
     if (!engineRef.current) return;
     const res = applyAction(engineRef.current, action);
-    if (res.ok) broadcast(res.state);
+    if (res.ok) broadcastEngine(res.state);
     // Silently ignored if illegal (e.g. a stale/duplicate client request) — the host's
     // state is authoritative and simply doesn't change, so clients just see no update.
   };
 
-  const hostApi = useRef({ hostStart, hostApply, broadcast });
-  hostApi.current = { hostStart, hostApply, broadcast };
+  const hostApi = useRef({ hostStart, hostApply, broadcastEngine, commitPublic });
+  hostApi.current = { hostStart, hostApply, broadcastEngine, commitPublic };
+
+  // Keep the lobby's visible player list in step with room presence (join/leave/rename),
+  // same as Harf/Wobble — only touches state while nobody has dealt a game yet; once
+  // play starts, `players` is owned by the engine (hand counts, finished flags, etc).
+  useEffect(() => {
+    if (!isHost || !stateRef.current || stateRef.current.phase !== 'lobby') return;
+    const pub = stateRef.current;
+    const players: Record<string, PlayerMeta> = {};
+    roster.forEach((r, i) => {
+      const existing = pub.players[r.key];
+      players[r.key] = existing
+        ? { ...existing, name: r.name, connected: true }
+        : { key: r.key, name: r.name, color: i % PLAYER_COLORS_COUNT, connected: true, finished: false, finishOrder: null, handCount: 0 };
+    });
+    if (JSON.stringify(players) !== JSON.stringify(pub.players)) {
+      hostApi.current.commitPublic({ ...pub, players, order: roster.map((r) => r.key) });
+    }
+  }, [isHost, roster]);
 
   // ---------- messaging ----------
   useEffect(() => {
@@ -78,18 +106,18 @@ export function useHezzGame({ channel, isHost, myKey, playerKeys, playerNames }:
     if (isHost) {
       offs.push(
         listen(channel, 'hezz_hello', (p) => {
-          if (!engineRef.current) return;
-          send('hezz_state', engineRef.current.public);
-          send('hezz_hand', { to: p.key, hand: engineRef.current.hands[p.key] ?? [] });
+          if (stateRef.current) send('hezz_state', stateRef.current);
+          if (engineRef.current) send('hezz_hand', { to: p.key, hand: engineRef.current.hands[p.key] ?? [] });
         }),
       );
       offs.push(listen(channel, 'hezz_action', (p) => hostApi.current.hostApply(p.action)));
-      if (engineRef.current) hostApi.current.broadcast(engineRef.current);
+      if (stateRef.current) send('hezz_state', stateRef.current);
     } else {
       offs.push(
         listen(channel, 'hezz_state', (p: PublicState) => {
           if (p.seq < lastSeqRef.current) return; // stale/out-of-order — ignore
           lastSeqRef.current = p.seq;
+          stateRef.current = p;
           setState(p);
         }),
       );
