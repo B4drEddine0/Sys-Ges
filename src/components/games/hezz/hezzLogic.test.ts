@@ -155,11 +155,13 @@ describe('forced draw with no legal move', () => {
     expect(res.state.public.turnIndex).toBe(1); // moved to b
   });
 
-  it('refuses to draw when a legal play exists', () => {
+  it('allows a voluntary draw even when a legal play exists, and still ends the turn', () => {
     const hands = { a: [c('dhab', 6)], b: [c('kas', 1)], c: [c('sif', 3)] };
-    const state = makeState({ hands, discard: c('dhab', 4) });
+    const state = makeState({ hands, discard: c('dhab', 4), drawPile: [c('asa', 9 as any as 10)] });
     const res = applyAction(state, { type: 'draw', player: 'a' });
-    expect(res.ok).toBe(false);
+    expect(res.ok).toBe(true);
+    expect(res.state.hands.a).toHaveLength(2); // kept the legal card, plus the drawn one
+    expect(res.state.public.turnIndex).toBe(1);
   });
 
   it('a drawn card is not auto-played — the turn is already over', () => {

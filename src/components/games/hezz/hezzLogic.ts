@@ -336,10 +336,11 @@ function applyDraw(state: EngineState, player: string, rng: Rng): ApplyResult {
     return { state, ok: true };
   }
 
+  // Drawing is always available on a normal turn, not just when stuck — a player may
+  // hold a legal card and still prefer to pass and draw instead (keeping that card
+  // hidden, fishing for a better one, etc). Forced-draw-when-stuck and this voluntary
+  // draw are the same action with the same consequence: exactly one card, turn ends.
   const hand = state.hands[player];
-  if (legalCards(hand, pub).length > 0) {
-    return { state: state, ok: false, error: 'You have a legal play — you cannot draw.' };
-  }
   const card = drawOne(state, rng);
   if (card) {
     state.hands[player] = [...hand, card];

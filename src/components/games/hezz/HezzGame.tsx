@@ -212,6 +212,12 @@ function Table({
         ? null
         : 'Draw a card';
 
+  // Drawing is never *required* to be the only way forward — a player holding a legal
+  // card may still choose to pass and draw instead (keep that card hidden, wait for a
+  // better one, etc). This is the same `draw()` action, just offered even when it isn't
+  // the only option, via the draw pile itself and a small secondary link under the hand.
+  const canVoluntaryDraw = myTurn && !hasPending && legal.length > 0 && !me?.finished;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
@@ -258,7 +264,15 @@ function Table({
 
         <div className="flex items-center justify-center gap-6 py-4">
           <div className="flex flex-col items-center gap-1">
-            <HezzCard faceDown size="md" />
+            <button
+              type="button"
+              disabled={!canAct}
+              onClick={() => act(() => actions.draw())}
+              title={canAct ? 'Draw a card' : undefined}
+              className={`rounded-lg transition-transform ${canAct ? 'cursor-pointer hover:-translate-y-1 active:translate-y-0' : 'cursor-default'}`}
+            >
+              <HezzCard faceDown size="md" />
+            </button>
             <span className="text-xs font-bold text-white/70">{state.drawCount} left</span>
           </div>
           <AnimatePresence mode="popLayout">
@@ -288,6 +302,11 @@ function Table({
           <Button onClick={() => act(() => actions.draw())} className="h-12 w-full rounded-2xl bg-[#0f4c3a] font-black text-white hover:bg-[#0c3c2e]">
             {bottomLabel}
           </Button>
+        )}
+        {canVoluntaryDraw && (
+          <button onClick={() => act(() => actions.draw())} className="block w-full text-center text-xs font-bold text-muted-foreground underline-offset-4 hover:underline">
+            Don't want to play any of these? Draw a card instead
+          </button>
         )}
         {!myTurn && !me?.finished && (
           <p className="text-center text-xs font-bold text-muted-foreground">Waiting for {state.players[state.order[state.turnIndex]]?.name}…</p>
