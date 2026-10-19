@@ -10,6 +10,8 @@
     "build": "tsc -b && tsx scripts/build-extension-zip.ts && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "generate:seed": "tsx scripts/seed-db.ts",
     "relay": "tsx --env-file=.env relay/server.ts"
   },
@@ -50,6 +52,7 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vitest": "^2.1.9"
   }
 }

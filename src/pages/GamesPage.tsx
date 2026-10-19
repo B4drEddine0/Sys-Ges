@@ -8,9 +8,10 @@ import { Checkers } from '@/components/games/Checkers';
 import { RedHands } from '@/components/games/RedHands';
 import { HarfGame } from '@/components/games/harf/HarfGame';
 import { WobbleGame } from '@/components/games/wobble/WobbleGame';
+import { HezzGame } from '@/components/games/hezz/HezzGame';
 import { Pong } from '@/components/games/Pong';
 
-type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | 'pong' | 'harf' | 'wobble' | null;
+type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | 'pong' | 'harf' | 'wobble' | 'hezz' | null;
 type GameMode = 'local' | 'online' | null;
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -39,6 +40,7 @@ export function GamesPage() {
   // pending that choice.
   const [harfCountPrompt, setHarfCountPrompt] = useState(false);
   const [wobbleCountPrompt, setWobbleCountPrompt] = useState(false);
+  const [hezzCountPrompt, setHezzCountPrompt] = useState(false);
   const [connect4CountPrompt, setConnect4CountPrompt] = useState<'local' | 'online' | null>(null);
 
   const resetSelection = () => {
@@ -221,6 +223,18 @@ export function GamesPage() {
                     </Button>
                   </div>
                 </div>
+                {/* Hezz Jouj Card */}
+                <div className="flex flex-col p-6 bg-gradient-to-br from-emerald-950 to-teal-900 border border-emerald-800 rounded-3xl gap-6 shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:border-emerald-500/50 transition-all">
+                  <div className="space-y-2 text-center">
+                    <h3 className="text-2xl font-black tracking-tight text-amber-100">هز جوج</h3>
+                    <p className="text-emerald-200/80 text-sm hidden md:block">Moroccan Ronda card game. 2–6 players.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 mt-auto">
+                    <Button onClick={() => setHezzCountPrompt(true)} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm bg-amber-600 hover:bg-amber-500 text-white">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* Join Room */}
@@ -272,6 +286,21 @@ export function GamesPage() {
           <div className="grid grid-cols-3 gap-3">
             {[2, 3, 4, 5, 6].map(n => (
               <Button key={n} variant={n === 2 ? 'default' : 'secondary'} className="h-16 rounded-2xl text-lg" onClick={() => { setHarfCountPrompt(false); createOnlineRoom('harf', n); }}>
+                {n}
+              </Button>
+            ))}
+          </div>
+        </Modal>
+
+        <Modal
+          open={hezzCountPrompt}
+          title="هز جوج"
+          description="How many players?"
+          onClose={() => setHezzCountPrompt(false)}
+        >
+          <div className="grid grid-cols-3 gap-3">
+            {[2, 3, 4, 5, 6].map(n => (
+              <Button key={n} variant={n === 2 ? 'default' : 'secondary'} className="h-16 rounded-2xl text-lg" onClick={() => { setHezzCountPrompt(false); createOnlineRoom('hezz', n); }}>
                 {n}
               </Button>
             ))}
@@ -447,6 +476,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
       {initialGameType === 'connect4' && <Connect4 local={false} channel={channel} mySeat={mySeat} totalPlayers={roomTarget as 2 | 4} playerNames={playerNames} />}
       {initialGameType === 'harf' && <HarfGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} onLeave={onLeave} />}
       {initialGameType === 'wobble' && <WobbleGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} onLeave={onLeave} />}
+      {initialGameType === 'hezz' && <HezzGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} onLeave={onLeave} />}
       {initialGameType === 'checkers' && <Checkers local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'redhands' && <RedHands local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'pong' && <Pong local={false} channel={channel} isHost={isHost} />}
