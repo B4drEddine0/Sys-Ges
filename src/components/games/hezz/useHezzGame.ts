@@ -34,6 +34,13 @@ export function useHezzGame({ channel, isHost, myKey, playerKeys, playerNames }:
   const stateRef = useRef<PublicState | null>(state);
   const engineRef = useRef<EngineState | null>(null);
   const lastSeqRef = useRef(-1);
+  // The engine stamps its own `seq` per-game (starting back at 0 every fresh deal,
+  // including "Play Again"), which is fine for its internal bookkeeping but useless as a
+  // network staleness check — a guest who'd already seen seq 40+ from the previous game
+  // would silently reject the brand new game's seq-0 snapshot as "old". The hook owns its
+  // own counter instead, strictly increasing for the whole room session, independent of
+  // the engine restarting.
+  const broadcastSeqRef = useRef(0);
 
   const roster = useMemo(
     () => playerKeys.map((key, i) => ({ key, name: playerNames[i] && playerNames[i] !== 'Player' ? playerNames[i] : `Player ${i + 1}` })),
@@ -47,9 +54,10 @@ export function useHezzGame({ channel, isHost, myKey, playerKeys, playerNames }:
 
   // ---------- host: single source of truth ----------
   const commitPublic = (pub: PublicState) => {
-    stateRef.current = pub;
-    setState(pub);
-    send('hezz_state', pub);
+    const stamped = { ...pub, seq: ++broadcastSeqRef.current };
+    stateRef.current = stamped;
+    setState(stamped);
+    send('hezz_state', stamped);
   };
 
   const broadcastEngine = (engine: EngineState) => {
