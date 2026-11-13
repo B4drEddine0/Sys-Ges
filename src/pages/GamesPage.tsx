@@ -9,9 +9,11 @@ import { RedHands } from '@/components/games/RedHands';
 import { HarfGame } from '@/components/games/harf/HarfGame';
 import { WobbleGame } from '@/components/games/wobble/WobbleGame';
 import { HezzGame } from '@/components/games/hezz/HezzGame';
+import { BrainBattleGame } from '@/components/games/brainbattle/BrainBattleGame';
+import { SoloBattleGame } from '@/components/games/brainbattle/SoloBattleGame';
 import { Pong } from '@/components/games/Pong';
 
-type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | 'pong' | 'harf' | 'wobble' | 'hezz' | null;
+type GameType = 'tictactoe' | 'connect4' | 'checkers' | 'redhands' | 'pong' | 'harf' | 'wobble' | 'hezz' | 'brainbattle' | null;
 type GameMode = 'local' | 'online' | null;
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -41,6 +43,7 @@ export function GamesPage() {
   const [harfCountPrompt, setHarfCountPrompt] = useState(false);
   const [wobbleCountPrompt, setWobbleCountPrompt] = useState(false);
   const [hezzCountPrompt, setHezzCountPrompt] = useState(false);
+  const [brainBattleCountPrompt, setBrainBattleCountPrompt] = useState(false);
   const [connect4CountPrompt, setConnect4CountPrompt] = useState<'local' | 'online' | null>(null);
 
   const resetSelection = () => {
@@ -235,6 +238,21 @@ export function GamesPage() {
                     </Button>
                   </div>
                 </div>
+                {/* Brain Battle Card */}
+                <div className="flex flex-col p-6 bg-gradient-to-br from-violet-950 to-fuchsia-900 border border-violet-800 rounded-3xl gap-6 shadow-[0_0_20px_rgba(124,58,237,0.2)] hover:shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:border-violet-500/50 transition-all">
+                  <div className="space-y-2 text-center">
+                    <h3 className="text-2xl font-black tracking-tight text-white">🧠 تحدّي العقول</h3>
+                    <p className="text-violet-200/80 text-sm hidden md:block">Arabic trivia, riddles & word puzzles. Solo or up to 10 players.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-auto">
+                    <Button onClick={() => startLocalGame('brainbattle')} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm bg-violet-800/60 hover:bg-violet-800 text-white">
+                      <Monitor className="h-4 w-4 md:h-5 md:w-5" /> Solo
+                    </Button>
+                    <Button onClick={() => setBrainBattleCountPrompt(true)} className="flex flex-col h-16 md:h-20 gap-2 rounded-2xl text-xs md:text-sm bg-fuchsia-600 hover:bg-fuchsia-500 text-white">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" /> Room
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* Join Room */}
@@ -275,6 +293,7 @@ export function GamesPage() {
           {inRoom && gameMode === 'local' && selectedGame === 'checkers' && <Checkers local />}
           {inRoom && gameMode === 'local' && selectedGame === 'redhands' && <RedHands local />}
           {inRoom && gameMode === 'local' && selectedGame === 'pong' && <Pong local />}
+          {inRoom && gameMode === 'local' && selectedGame === 'brainbattle' && <SoloBattleGame onLeave={resetSelection} />}
         </div>
 
         <Modal
@@ -323,6 +342,21 @@ export function GamesPage() {
         </Modal>
 
         <Modal
+          open={brainBattleCountPrompt}
+          title="تحدّي العقول"
+          description="How many players? (up to 10)"
+          onClose={() => setBrainBattleCountPrompt(false)}
+        >
+          <div className="grid grid-cols-5 gap-3">
+            {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+              <Button key={n} variant={n === 2 ? 'default' : 'secondary'} className="h-14 rounded-2xl text-lg" onClick={() => { setBrainBattleCountPrompt(false); createOnlineRoom('brainbattle', n); }}>
+                {n}
+              </Button>
+            ))}
+          </div>
+        </Modal>
+
+        <Modal
           open={connect4CountPrompt !== null}
           title="Connect 4"
           description="How many players?"
@@ -356,6 +390,10 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
   const [mySeat, setMySeat] = useState(isHost ? 0 : 1);
   const [playerNames, setPlayerNames] = useState<string[]>([]);
   const [playerKeys, setPlayerKeys] = useState<string[]>([]);
+  // Live, not cached-from-broadcast: a disconnected host can't publish "I'm gone" itself,
+  // so games that need to detect that (Brain Battle) read this instead of trusting a
+  // game-level state snapshot that would otherwise just go stale forever.
+  const [hostConnected, setHostConnected] = useState(true);
   const myName = playerName?.trim() || 'Player';
 
   const effectiveMax = maxPlayers ?? 2;
@@ -381,8 +419,9 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
       // The host's own presence payload carries the intended room size, so guests can
       // see "2 of 4 players" progress before the room is actually full.
       const hostEntry = entries.find(([key]) => key === 'host');
+      setHostConnected(isHost || !!hostEntry);
       const announcedMax = hostEntry?.[1]?.[0]?.maxPlayers;
-      if (Number.isInteger(announcedMax) && announcedMax >= 2 && announcedMax <= 6) setRoomTarget(announcedMax);
+      if (Number.isInteger(announcedMax) && announcedMax >= 2 && announcedMax <= 10) setRoomTarget(announcedMax);
 
       const sorted = entries
         .map(([key, metas]) => ({ key, joinedAt: metas?.[0]?.joined_at ?? key, name: metas?.[0]?.name }))
@@ -402,7 +441,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
     .on('broadcast', { event: 'game_init' }, (payload) => {
       if (!isHost) {
         if (payload.payload.gameType) onGameSelected(payload.payload.gameType as GameType);
-        if (Number.isInteger(payload.payload.maxPlayers) && payload.payload.maxPlayers >= 2 && payload.payload.maxPlayers <= 6) setRoomTarget(payload.payload.maxPlayers);
+        if (Number.isInteger(payload.payload.maxPlayers) && payload.payload.maxPlayers >= 2 && payload.payload.maxPlayers <= 10) setRoomTarget(payload.payload.maxPlayers);
         setOpponentJoined(true);
       }
     })
@@ -477,6 +516,7 @@ function OnlineGameWrapper({ roomCode, isHost, initialGameType, onGameSelected, 
       {initialGameType === 'harf' && <HarfGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} onLeave={onLeave} />}
       {initialGameType === 'wobble' && <WobbleGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} onLeave={onLeave} />}
       {initialGameType === 'hezz' && <HezzGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} onLeave={onLeave} />}
+      {initialGameType === 'brainbattle' && <BrainBattleGame channel={channel} isHost={isHost} myKey={presenceKey} playerKeys={playerKeys} playerNames={playerNames} hostConnected={hostConnected} onLeave={onLeave} />}
       {initialGameType === 'checkers' && <Checkers local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'redhands' && <RedHands local={false} channel={channel} isHost={isHost} />}
       {initialGameType === 'pong' && <Pong local={false} channel={channel} isHost={isHost} />}

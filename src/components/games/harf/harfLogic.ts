@@ -1,3 +1,5 @@
+import { normalizeArabic, stripArticle } from '../shared/arabicText';
+
 export const CATEGORIES = ['بنت', 'ولد', 'حيوان', 'جماد', 'بلد', 'أكلة', 'لون'] as const;
 
 // Letters that are realistic to fill seven categories with.
@@ -81,19 +83,6 @@ export function initialState(): HarfState {
     history: {},
   };
 }
-
-export function normalizeArabic(s: string): string {
-  return s
-    .normalize('NFKC')
-    .replace(/[ً-ٰٟـ]/g, '') // tashkeel + tatweel
-    .replace(/[أإآٱ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-const stripArticle = (s: string) => (s.startsWith('ال') && s.length > 3 ? s.slice(2) : s);
 
 export function startsWithLetter(answer: string, letter: string): boolean {
   const n = normalizeArabic(answer);
