@@ -5,11 +5,12 @@ import {
   checkMcqAnswer,
   checkTextAnswer,
   computePoints,
+  FIRST_CORRECT_BONUS,
   isMcqQuestion,
   redactQuestion,
   selectQuestions,
+  shuffledMcqOrder,
   type Difficulty,
-  type McqQuestion,
   type PublicQuestion,
   type QType,
   type Question,
@@ -17,7 +18,7 @@ import {
 } from './battleLogic';
 import { QUESTION_BANK } from './questionBank';
 
-export type BattlePhase = 'lobby' | 'round_start' | 'answering' | 'reveal' | 'round_results' | 'final';
+export type BattlePhase = 'lobby' | 'playing' | 'final';
 
 export interface BBPlayer {
   key: string;
@@ -26,58 +27,48 @@ export interface BBPlayer {
   connected: boolean;
 }
 
-export interface RoundResult {
-  key: string;
+/** One player's result for one question — safe to broadcast only once the whole game is over. */
+export interface FinalAnswerCell {
   answered: boolean;
   correct: boolean;
-  timeMs: number; // kept for the "fastest player" stat only — no longer affects scoring, see below
   points: number;
-  isFirstCorrect: boolean;
-  display: string; // what they submitted, or '' if they didn't answer — safe to show post-reveal
+  display: string; // '' if never answered
 }
 
-// Friends-mode multiplayer is untimed by design: every player answers at their own pace,
-// and a round ends once everyone has submitted (or the host manually ends it — see
-// `forceFinish`, the escape hatch for a player who disconnects mid-round). Scoring
-// therefore carries no speed component here — see computePoints's `timeLimitMs: null`.
-// Solo mode is unaffected and keeps its own per-question timer (useSoloBattle.ts).
+// Friends mode is untimed and fully self-paced by design: every player works through the
+// *same* list of questions independently, moving on the instant they answer, and only
+// waits once they've finished the whole list. There is no per-question synchronization
+// left to time out, so scoring carries no speed component (see computePoints's
+// `timeLimitMs: null`) — the one speed-flavored reward left is a small bonus for
+// whoever finishes the entire list first.
 export interface BattleSettings {
-  totalRounds: number;
+  totalQuestions: number;
   types: QType[];
   difficulties: Difficulty[];
 }
 
 export const DEFAULT_SETTINGS: BattleSettings = {
-  totalRounds: 8,
+  totalQuestions: 15,
   types: ['mcq_general', 'mcq_proverb', 'mcq_connection', 'scramble', 'hidden_word', 'riddle'],
   difficulties: ['easy', 'medium', 'hard', 'expert'],
 };
 
-const COUNTDOWN_MS = 2600;
-const REVEAL_MS = 5500;
-const RESULTS_MS = 4500;
-
 export interface BattlePublicState {
   phase: BattlePhase;
-  round: number;
-  totalRounds: number;
+  totalQuestions: number;
   types: QType[];
   difficulties: Difficulty[];
   players: Record<string, BBPlayer>;
   active: string[];
-  question: PublicQuestion | null;
-  revealQuestion: Question | null;
-  roundStartAt: number | null;
-  phaseEndsAt: number | null; // used for round_start/reveal/round_results display timers only — never "answering"
-  submittedKeys: string[];
-  results: Record<string, RoundResult> | null;
+  questions: PublicQuestion[]; // the whole game's list, redacted — empty in 'lobby'
+  progress: Record<string, number>; // 0..totalQuestions, live, content-free
+  finished: string[];
+  firstFinisherKey: string | null;
+  // Populated only once phase === 'final' — this is the "fun reveal table" moment.
   scores: Record<string, number>;
-  prevScores: Record<string, number>;
-  history: Record<string, number[]>;
-  firstCorrectHistory: Record<string, number>; // how many rounds each player was first-correct in
-  timeHistory: Record<string, number[]>; // answer time per round, correct answers only — stats/podium use only, not scoring
+  revealTable: Record<string, FinalAnswerCell[]> | null;
+  correctAnswers: string[] | null; // the correct text for each question — safe now the game is over
   usedIds: string[];
-  seed: number;
   now: number;
   seq: number;
 }
@@ -85,25 +76,19 @@ export interface BattlePublicState {
 function initialLobbyState(): BattlePublicState {
   return {
     phase: 'lobby',
-    round: 0,
-    totalRounds: DEFAULT_SETTINGS.totalRounds,
+    totalQuestions: DEFAULT_SETTINGS.totalQuestions,
     types: DEFAULT_SETTINGS.types,
     difficulties: DEFAULT_SETTINGS.difficulties,
     players: {},
     active: [],
-    question: null,
-    revealQuestion: null,
-    roundStartAt: null,
-    phaseEndsAt: null,
-    submittedKeys: [],
-    results: null,
+    questions: [],
+    progress: {},
+    finished: [],
+    firstFinisherKey: null,
     scores: {},
-    prevScores: {},
-    history: {},
-    firstCorrectHistory: {},
-    timeHistory: {},
+    revealTable: null,
+    correctAnswers: null,
     usedIds: [],
-    seed: 0,
     now: Date.now(),
     seq: 0,
   };
@@ -124,24 +109,29 @@ interface Options {
  * Networking layer for Brain Battle. Same host-authoritative pattern as every other
  * online game here (see useHarfGame.ts / useHezzGame.ts) — the room host's browser tab
  * is trusted by convention, there's no real backend game server in this project. The
- * correct answer is kept out of the broadcast `question` entirely during 'answering' (a
- * redacted `PublicQuestion`) and only included once the phase flips to 'reveal' — same
- * discipline as Hezz's hidden hands and Harf's hidden answers pre-reveal. As with those,
- * this is "kept out of this app's own UI/state," not cryptographically secret from
- * someone reading raw websocket frames.
+ * real question list (with correct answers) is kept host-only in `fullQuestionsRef` and
+ * never broadcast — clients only ever see the redacted `questions` in public state.
+ * Likewise each player's own per-question result is kept host-only in `answersRef` and
+ * only published, for everyone, once the whole game reaches 'final' — same discipline as
+ * Hezz's hidden hands and Harf's hidden answers pre-reveal. As with those, this is "kept
+ * out of this app's own UI/state," not cryptographically secret from someone reading raw
+ * websocket frames.
  */
 export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerNames, hostConnected }: Options) {
   const [state, setState] = useState<BattlePublicState | null>(() => (isHost ? initialLobbyState() : null));
   const stateRef = useRef<BattlePublicState | null>(state);
-  // The FULL, un-redacted current question (host-only) — never broadcast until reveal.
-  const liveQuestionRef = useRef<Question | null>(null);
-  const firstCorrectKeyRef = useRef<string | null>(null);
+  const fullQuestionsRef = useRef<Question[]>([]);
+  const seedsRef = useRef<number[]>([]);
+  const answersRef = useRef<Record<string, FinalAnswerCell[]>>({});
   // Hook-owned, strictly increasing for the whole room session — see the writeup on the
   // identical bug this fixed in Hezz Jouj's "Play Again": trusting a per-game counter
   // that resets on restart makes a fresh game's broadcast look "stale" to guests.
   const broadcastSeqRef = useRef(0);
   const lastSeqRef = useRef(-1);
-  const offsetRef = useRef(0); // host-clock - local-clock, derived from each broadcast's `now`
+
+  // Per-question instant personal feedback ("✅ +150" / "❌") — a private whisper, never
+  // broadcast, so it can't leak anything about *your* answer to other players either.
+  const [lastAck, setLastAck] = useState<{ questionIndex: number; correct: boolean; points: number } | null>(null);
 
   const roster = useMemo(
     () => playerKeys.map((key, i) => ({ key, name: playerNames[i] && playerNames[i] !== 'Player' ? playerNames[i] : `لاعب ${i + 1}` })),
@@ -160,114 +150,89 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
     send('bb_state', next);
   };
 
-  // ---------- host round logic ----------
-  const startRound = (settings?: BattleSettings) => {
-    const s = stateRef.current!;
-    // Settings persist from the lobby across every round of the game — only the initial
-    // `start()` call passes them explicitly; later rounds reuse whatever's already in
-    // state rather than silently falling back to "every type, every difficulty".
-    const cfg: BattleSettings = settings ?? { totalRounds: s.totalRounds, types: s.types, difficulties: s.difficulties };
-    // Active players for this round = whoever's currently connected. For round 1 that's
-    // the whole lobby roster; for later rounds it's recomputed fresh each time too (not
-    // carried over from the previous round's snapshot), so a player who joined mid-game
-    // is included starting next round, and one who left drops out.
+  // ---------- host game logic ----------
+  const startGame = (settings: BattleSettings) => {
     const activeFinal = rosterRef.current.map((r) => r.key);
-
-    const used = new Set(s.usedIds);
-    const [question] = selectQuestions(QUESTION_BANK, 1, used, { types: cfg.types, difficulties: cfg.difficulties }, Math.random);
-    liveQuestionRef.current = question ?? null;
-    firstCorrectKeyRef.current = null;
-    const seed = randomSeed();
+    const used = new Set(stateRef.current?.usedIds ?? []);
+    const picked = selectQuestions(QUESTION_BANK, settings.totalQuestions, used, { types: settings.types, difficulties: settings.difficulties }, Math.random);
+    fullQuestionsRef.current = picked;
+    seedsRef.current = picked.map(() => randomSeed());
+    answersRef.current = {};
+    const questions = picked.map((q, i) => redactQuestion(q, seedsRef.current[i]));
 
     commit({
-      phase: 'round_start',
-      round: s.round + 1,
-      totalRounds: cfg.totalRounds,
-      types: cfg.types,
-      difficulties: cfg.difficulties,
+      phase: 'playing',
+      totalQuestions: picked.length,
+      types: settings.types,
+      difficulties: settings.difficulties,
       active: activeFinal,
-      question: question ? redactQuestion(question, seed) : null,
-      revealQuestion: null,
-      seed,
-      roundStartAt: null,
-      phaseEndsAt: Date.now() + COUNTDOWN_MS,
-      submittedKeys: [],
-      results: null,
-      usedIds: question ? [...s.usedIds, question.id].slice(-QUESTION_BANK.length) : s.usedIds,
+      questions,
+      progress: Object.fromEntries(activeFinal.map((k) => [k, 0])),
+      finished: [],
+      firstFinisherKey: null,
+      scores: {},
+      revealTable: null,
+      correctAnswers: null,
+      usedIds: [...(stateRef.current?.usedIds ?? []), ...picked.map((q) => q.id)].slice(-QUESTION_BANK.length),
     });
   };
 
-  const toAnswering = () => {
-    // No deadline is set here on purpose — friends mode is untimed; see finishRound for
-    // how the round actually ends (everyone's answered, or the host ends it manually).
-    commit({ phase: 'answering', roundStartAt: Date.now() });
-  };
-
-  const finishRound = () => {
+  const finalize = (opts: { forced: boolean }) => {
     const s = stateRef.current!;
-    const q = liveQuestionRef.current;
-    // Idempotency guard: this can be scheduled from two independent places — a manual
-    // host force-finish and the "everyone already answered" fast path right after a
-    // submission — and if their timing ever overlaps, both could fire. Without this
-    // check, the second call would re-run scoring against the *already updated* scores
-    // and double-award every player's round points.
-    if (!q || s.phase !== 'answering') return;
-    const results: Record<string, RoundResult> = { ...(s.results ?? {}) };
+    const revealTable: Record<string, FinalAnswerCell[]> = {};
+    const scores: Record<string, number> = {};
     s.active.forEach((key) => {
-      if (!results[key]) {
-        results[key] = { key, answered: false, correct: false, timeMs: 0, points: 0, isFirstCorrect: false, display: '' };
-      }
+      const cells = [...(answersRef.current[key] ?? [])];
+      // A player who disconnected / never finished (only reachable via the host's manual
+      // "end the game now" override) gets empty, zero-point cells for whatever's left —
+      // never a penalty beyond the points they simply didn't earn.
+      for (let i = cells.length; i < s.totalQuestions; i++) cells.push({ answered: false, correct: false, points: 0, display: '' });
+      revealTable[key] = cells;
+      scores[key] = cells.reduce((sum, c) => sum + c.points, 0) + (key === s.firstFinisherKey ? FIRST_CORRECT_BONUS : 0);
     });
-    const scores = { ...s.scores };
-    const history = { ...s.history };
-    const firstCorrectHistory = { ...s.firstCorrectHistory };
-    const timeHistory = { ...s.timeHistory };
-    s.active.forEach((key) => {
-      const r = results[key];
-      scores[key] = (scores[key] ?? 0) + r.points;
-      history[key] = [...(history[key] ?? []), r.points];
-      if (r.isFirstCorrect) firstCorrectHistory[key] = (firstCorrectHistory[key] ?? 0) + 1;
-      if (r.correct) timeHistory[key] = [...(timeHistory[key] ?? []), r.timeMs];
-    });
-    commit({ phase: 'reveal', revealQuestion: q, results, scores, prevScores: s.scores, history, firstCorrectHistory, timeHistory, phaseEndsAt: Date.now() + REVEAL_MS });
+    // The correct text for every question — safe to reveal now that the game is over,
+    // and what makes the final table useful for more than just a score tally.
+    const correctAnswers = fullQuestionsRef.current.map((q) => (isMcqQuestion(q) ? q.options[q.correctIndex] : q.answer));
+    commit({ phase: 'final', revealTable, scores, correctAnswers });
+    void opts;
   };
 
-  const toRoundResults = () => commit({ phase: 'round_results', phaseEndsAt: Date.now() + RESULTS_MS });
-
-  const advanceAfterResults = () => {
-    const s = stateRef.current!;
-    if (s.round >= s.totalRounds) commit({ phase: 'final', phaseEndsAt: null });
-    else startRound();
-  };
-
-  const receiveSubmit = (key: string, payload: { chosenIndex?: number; text?: string }) => {
+  const receiveSubmit = (key: string, payload: { questionIndex: number; chosenIndex?: number; text?: string }): { correct: boolean; points: number } | null => {
     const s = stateRef.current;
-    const q = liveQuestionRef.current;
-    if (!s || !q || s.phase !== 'answering' || !s.active.includes(key)) return;
-    if (s.submittedKeys.includes(key)) return; // duplicate submission — ignored
+    if (!s || s.phase !== 'playing' || !s.active.includes(key) || s.finished.includes(key)) return null;
+    const expectedIndex = s.progress[key] ?? 0;
+    if (payload.questionIndex !== expectedIndex) return null; // out of order / duplicate / replay — ignored
+    const q = fullQuestionsRef.current[expectedIndex];
+    const seed = seedsRef.current[expectedIndex];
+    if (!q) return null;
 
-    const correct = isMcqQuestion(q) ? checkMcqAnswer(q, payload.chosenIndex ?? -1) : checkTextAnswer(q as TextQuestion, payload.text ?? '');
-    const timeMs = Math.max(0, Date.now() - (s.roundStartAt ?? Date.now()));
-    const isFirstCorrect = correct && firstCorrectKeyRef.current === null;
-    if (isFirstCorrect) firstCorrectKeyRef.current = key;
-    // Untimed scoring: difficulty + correctness only, no speed component (see the
-    // BattleSettings doc comment for why). `timeMs` is still recorded for the "fastest
-    // player" end-of-game stat, it just no longer feeds points.
-    const points = computePoints({ correct, difficulty: q.difficulty, timeMs, timeLimitMs: null, isFirstCorrect });
-    const display = isMcqQuestion(q) ? q.options[payload.chosenIndex ?? -1] ?? '' : (payload.text ?? '').trim();
+    const correct = isMcqQuestion(q) ? checkMcqAnswer(q, payload.chosenIndex ?? -1, seed) : checkTextAnswer(q as TextQuestion, payload.text ?? '');
+    const points = computePoints({ correct, difficulty: q.difficulty, timeMs: 0, timeLimitMs: null, isFirstCorrect: false });
+    // For MCQ, map the chosen *display* index back through the same shuffle used to
+    // redact this question, so the recorded text matches what the player actually picked
+    // (not whatever happens to sit at that index in the unshuffled authored order).
+    const display = isMcqQuestion(q) ? q.options[shuffledMcqOrder(q, seed)[payload.chosenIndex ?? -1]] ?? '' : (payload.text ?? '').trim();
 
-    const results = { ...(s.results ?? {}), [key]: { key, answered: true, correct, timeMs, points, isFirstCorrect, display } };
-    const submittedKeys = [...s.submittedKeys, key];
-    commit({ results, submittedKeys });
+    answersRef.current[key] = [...(answersRef.current[key] ?? []), { answered: true, correct, points, display }];
+    send('bb_ack', { to: key, questionIndex: expectedIndex, correct, points });
 
-    const allIn = s.active.every((k) => submittedKeys.includes(k));
-    if (allIn) setTimeout(finishRound, 0);
+    const progress = { ...s.progress, [key]: expectedIndex + 1 };
+    const justFinished = progress[key] >= s.totalQuestions;
+    const finished = justFinished && !s.finished.includes(key) ? [...s.finished, key] : s.finished;
+    const firstFinisherKey = justFinished && s.firstFinisherKey === null ? key : s.firstFinisherKey;
+    commit({ progress, finished, firstFinisherKey });
+
+    if (finished.length >= s.active.length) setTimeout(() => hostApi.current.finalize({ forced: false }), 0);
+    return { correct, points };
   };
 
-  const hostApi = useRef({ startRound, toAnswering, finishRound, toRoundResults, advanceAfterResults, receiveSubmit, commit });
-  hostApi.current = { startRound, toAnswering, finishRound, toRoundResults, advanceAfterResults, receiveSubmit, commit };
+  const hostApi = useRef({ startGame, finalize, receiveSubmit, commit });
+  hostApi.current = { startGame, finalize, receiveSubmit, commit };
 
-  // Keep the lobby's player list in step with room presence (same pattern as every other game here).
+  // Keep the player list in step with room presence (same pattern as every other game
+  // here). A player who joins while a game is already 'playing' is added to `active` too
+  // (starting fresh at question 0 of the same shared list) rather than locked out until
+  // the next game — matches "a player joins after the game has started".
   useEffect(() => {
     if (!isHost || !stateRef.current) return;
     const s = stateRef.current;
@@ -277,32 +242,21 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
       const existing = s.players[r.key];
       players[r.key] = existing ? { ...existing, name: r.name, connected: true } : { key: r.key, name: r.name, color: (existingColors.size + i) % PLAYER_COLORS_COUNT, connected: true };
     });
-    // Players who left presence stay in the record (so finished-round history/avatars
-    // don't vanish mid-game) but are marked disconnected.
     Object.keys(s.players).forEach((k) => {
       if (!players[k]) players[k] = { ...s.players[k], connected: false };
     });
-    if (JSON.stringify(players) !== JSON.stringify(s.players)) hostApi.current.commit({ players });
-  }, [isHost, roster]);
 
-  // Host display timers — note 'answering' is deliberately absent: there is no automatic
-  // timeout for it anymore (see finishRound / forceFinish).
-  useEffect(() => {
-    if (!isHost || !state) return;
-    if (state.phase === 'round_start' && state.phaseEndsAt) {
-      const t = setTimeout(() => hostApi.current.toAnswering(), Math.max(0, state.phaseEndsAt - Date.now()));
-      return () => clearTimeout(t);
+    const patch: Partial<BattlePublicState> = {};
+    if (JSON.stringify(players) !== JSON.stringify(s.players)) patch.players = players;
+    if (s.phase === 'playing') {
+      const joiners = roster.map((r) => r.key).filter((k) => !s.active.includes(k));
+      if (joiners.length > 0) {
+        patch.active = [...s.active, ...joiners];
+        patch.progress = { ...s.progress, ...Object.fromEntries(joiners.map((k) => [k, 0])) };
+      }
     }
-    if (state.phase === 'reveal' && state.phaseEndsAt) {
-      const t = setTimeout(() => hostApi.current.toRoundResults(), Math.max(0, state.phaseEndsAt - Date.now()));
-      return () => clearTimeout(t);
-    }
-    if (state.phase === 'round_results' && state.phaseEndsAt) {
-      const t = setTimeout(() => hostApi.current.advanceAfterResults(), Math.max(0, state.phaseEndsAt - Date.now()));
-      return () => clearTimeout(t);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, state?.phase, state?.phaseEndsAt, state?.round]);
+    if (Object.keys(patch).length > 0) hostApi.current.commit(patch);
+  }, [isHost, roster]);
 
   // ---------- messaging ----------
   useEffect(() => {
@@ -317,14 +271,20 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
         listen(channel, 'bb_state', (p: BattlePublicState) => {
           if (p.seq < lastSeqRef.current) return;
           lastSeqRef.current = p.seq;
-          offsetRef.current = p.now - Date.now();
           stateRef.current = p;
           setState(p);
         }),
       );
     }
+    // Everyone listens for their own ack, including the host (it sends to itself too).
+    offs.push(
+      listen(channel, 'bb_ack', (p: { to: string; questionIndex: number; correct: boolean; points: number }) => {
+        if (p.to !== myKey) return;
+        setLastAck({ questionIndex: p.questionIndex, correct: p.correct, points: p.points });
+      }),
+    );
     return () => offs.forEach((f) => f());
-  }, [channel, isHost, send]);
+  }, [channel, isHost, myKey, send]);
 
   const hasState = !!state;
   useEffect(() => {
@@ -336,40 +296,43 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
 
   // ---------- public API ----------
   const start = (settings: BattleSettings) => {
-    if (isHost) hostApi.current.startRound(settings);
+    if (isHost) hostApi.current.startGame(settings);
   };
 
-  const submitMcq = (chosenIndex: number) => {
-    if (isHost) hostApi.current.receiveSubmit(myKey, { chosenIndex });
-    else send('bb_submit', { key: myKey, payload: { chosenIndex } });
+  // The host applies its own submission directly (no network round trip) via the same
+  // `receiveSubmit` the broadcast handler uses, and — since supabase-js broadcast never
+  // delivers a message back to its own sender — sets its own instant-feedback ack from
+  // that same call's result, rather than recomputing the scoring a second time.
+  const submitMcq = (questionIndex: number, chosenIndex: number) => {
+    if (isHost) {
+      const result = hostApi.current.receiveSubmit(myKey, { questionIndex, chosenIndex });
+      if (result) setLastAck({ questionIndex, ...result });
+    } else {
+      send('bb_submit', { key: myKey, payload: { questionIndex, chosenIndex } });
+    }
   };
 
-  const submitText = (text: string) => {
-    if (isHost) hostApi.current.receiveSubmit(myKey, { text });
-    else send('bb_submit', { key: myKey, payload: { text } });
+  const submitText = (questionIndex: number, text: string) => {
+    if (isHost) {
+      const result = hostApi.current.receiveSubmit(myKey, { questionIndex, text });
+      if (result) setLastAck({ questionIndex, ...result });
+    } else {
+      send('bb_submit', { key: myKey, payload: { questionIndex, text } });
+    }
   };
 
-  const skipAhead = () => {
-    if (!isHost || !stateRef.current) return;
-    const ph = stateRef.current.phase;
-    if (ph === 'reveal') hostApi.current.toRoundResults();
-    else if (ph === 'round_results') hostApi.current.advanceAfterResults();
-  };
-
-  /** Host-only escape hatch: ends the round right now even if someone hasn't answered
-   * (e.g. they disconnected) — the only way a round ever ends besides everyone answering,
-   * now that there's no timer. */
-  const forceFinish = () => {
-    if (isHost && stateRef.current?.phase === 'answering') hostApi.current.finishRound();
+  /** Host-only escape hatch: ends the game right now even if someone hasn't finished
+   * (e.g. they disconnected) — the only way the game ends besides everyone finishing, now
+   * that there's no per-question timer. */
+  const forceFinishGame = () => {
+    if (isHost && stateRef.current?.phase === 'playing') hostApi.current.finalize({ forced: true });
   };
 
   const restart = () => {
-    if (isHost) hostApi.current.commit({ phase: 'lobby', round: 0, scores: {}, prevScores: {}, history: {}, firstCorrectHistory: {}, timeHistory: {}, usedIds: stateRef.current?.usedIds ?? [] });
+    if (isHost) hostApi.current.commit({ phase: 'lobby', questions: [], progress: {}, finished: [], firstFinisherKey: null, scores: {}, revealTable: null, correctAnswers: null });
   };
-
-  const getNow = useCallback(() => Date.now() + offsetRef.current, []);
 
   const hostMissing = !isHost && !hostConnected;
 
-  return { state, actions: { start, submitMcq, submitText, skipAhead, forceFinish, restart }, getNow, hostMissing };
+  return { state, lastAck, actions: { start, submitMcq, submitText, forceFinishGame, restart }, hostMissing };
 }

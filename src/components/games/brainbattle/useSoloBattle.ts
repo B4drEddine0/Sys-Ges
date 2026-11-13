@@ -3,10 +3,11 @@ import {
   checkMcqAnswer,
   checkTextAnswer,
   computePoints,
+  isMcqQuestion,
   redactQuestion,
   selectQuestions,
+  shuffledMcqOrder,
   type Difficulty,
-  type McqQuestion,
   type PublicQuestion,
   type QType,
   type Question,
@@ -63,6 +64,7 @@ export function useSoloBattle() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [lastResult, setLastResult] = useState<SoloRoundRecord | null>(null);
   const answeredRef = useRef(false);
+  const seedRef = useRef(0); // the seed redactQuestion used for *this* question's MCQ shuffle / scramble letters
 
   const seenRef = useRef<Set<string>>(new Set(loadSeen()));
 
@@ -95,8 +97,9 @@ export function useSoloBattle() {
 
   const beginRound = (q: Question) => {
     answeredRef.current = false;
+    seedRef.current = randomSeed();
     setQuestion(q);
-    setPublicQuestion(redactQuestion(q, randomSeed()));
+    setPublicQuestion(redactQuestion(q, seedRef.current));
     setRound((r) => r + 1);
     setStartedAt(Date.now());
     setPhase('question');
@@ -106,15 +109,12 @@ export function useSoloBattle() {
     if (!question || answeredRef.current) return;
     answeredRef.current = true;
     const timeMs = Math.max(0, Date.now() - (startedAt ?? Date.now()));
-    const correct =
-      question.type === 'mcq_general' || question.type === 'mcq_proverb' || question.type === 'mcq_connection'
-        ? checkMcqAnswer(question as McqQuestion, answer.chosenIndex ?? -1)
-        : checkTextAnswer(question as TextQuestion, answer.text ?? '');
+    const seed = seedRef.current;
+    const correct = isMcqQuestion(question) ? checkMcqAnswer(question, answer.chosenIndex ?? -1, seed) : checkTextAnswer(question as TextQuestion, answer.text ?? '');
     const points = computePoints({ correct, difficulty: question.difficulty, timeMs, timeLimitMs: settings.timeLimitMs, isFirstCorrect: false });
-    const display =
-      question.type === 'mcq_general' || question.type === 'mcq_proverb' || question.type === 'mcq_connection'
-        ? (question as McqQuestion).options[answer.chosenIndex ?? -1] ?? ''
-        : (answer.text ?? '').trim();
+    // Map the chosen *display* index back through the same shuffle used to redact this
+    // question, so the recorded text matches what was actually shown and picked.
+    const display = isMcqQuestion(question) ? question.options[shuffledMcqOrder(question, seed)[answer.chosenIndex ?? -1]] ?? '' : (answer.text ?? '').trim();
     const record: SoloRoundRecord = { question, correct, points, timeMs, display };
     setLastResult(record);
     setHistory((h) => [...h, record]);

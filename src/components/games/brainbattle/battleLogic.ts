@@ -60,10 +60,35 @@ export function isMcqQuestion(q: Question): q is McqQuestion {
   return q.type === 'mcq_general' || q.type === 'mcq_proverb' || q.type === 'mcq_connection';
 }
 
+/**
+ * A deterministic permutation of an MCQ's option indices, seeded so every client derives
+ * the identical shuffled order from the same small seed (same pattern as Wobble Race's
+ * obstacle phases / Harf's letter deck) — this is what makes the correct answer's on-screen
+ * position vary question to question instead of always sitting wherever it was authored.
+ */
+export function shuffledMcqOrder(q: McqQuestion, seed: number): number[] {
+  return shuffle(
+    q.options.map((_, i) => i),
+    mulberry32(seed),
+  );
+}
+
+// Harder difficulties get fewer progressive clues — "hard"/"expert" should be able to
+// genuinely stump a knowledgeable player, which a full staircase of hints undercuts. The
+// letter-count hint (answerLength, below) is left untouched at every difficulty: that one
+// exists purely to resolve an unfair-miss bug (not knowing whether to include "ال" or
+// write one word vs. several), not to make the question easier.
+function cluesForDifficulty(clues: string[], difficulty: Difficulty): string[] {
+  if (difficulty === 'expert') return clues.slice(0, Math.min(1, clues.length));
+  if (difficulty === 'hard') return clues.slice(0, Math.max(1, clues.length - 1));
+  return clues;
+}
+
 export function redactQuestion(q: Question, seed: number): PublicQuestion {
   if (isMcqQuestion(q)) {
-    const { id, type, difficulty, category, prompt, explanation, options } = q;
-    return { id, type, difficulty, category, prompt, explanation, options, correctIndex: undefined };
+    const { id, type, difficulty, category, prompt, explanation } = q;
+    const order = shuffledMcqOrder(q, seed);
+    return { id, type, difficulty, category, prompt, explanation, options: order.map((i) => q.options[i]), correctIndex: undefined };
   }
   const { id, type, difficulty, category, prompt, explanation, clues } = q;
   const bareAnswer = q.answer.replace(/\s/g, '');
@@ -71,13 +96,27 @@ export function redactQuestion(q: Question, seed: number): PublicQuestion {
   // Letter count alone isn't a spoiler — it doesn't reveal any letter — but it resolves a
   // real source of unfair misses: without it, a player has no way to know whether the
   // expected form includes "ال", is one word or several, etc.
-  return { id, type, difficulty, category, prompt, explanation, clues, answer: undefined, altAnswers: undefined, letters, answerLength: bareAnswer.length };
+  return {
+    id,
+    type,
+    difficulty,
+    category,
+    prompt,
+    explanation,
+    clues: cluesForDifficulty(clues, difficulty),
+    answer: undefined,
+    altAnswers: undefined,
+    letters,
+    answerLength: bareAnswer.length,
+  };
 }
 
 // ---------------------------------------------------------------- answer checking
 
-export function checkMcqAnswer(q: McqQuestion, chosenIndex: number): boolean {
-  return chosenIndex === q.correctIndex;
+/** `chosenIndex` refers to the *shuffled* display order the player actually saw — see shuffledMcqOrder. */
+export function checkMcqAnswer(q: McqQuestion, chosenIndex: number, seed: number): boolean {
+  const order = shuffledMcqOrder(q, seed);
+  return order[chosenIndex] === q.correctIndex;
 }
 
 // The leading "ال" (definite article) is stripped on both sides before comparing — a

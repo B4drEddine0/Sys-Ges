@@ -52,8 +52,8 @@ function Setup({ onStart, onLeave }: { onStart: (s: SoloSettings) => void; onLea
       <div className={`${cardCls} space-y-4 text-start`}>
         <div className="space-y-2">
           <p className="text-sm font-bold text-muted-foreground">عدد الأسئلة</p>
-          <div className="grid grid-cols-4 gap-2">
-            {[5, 10, 15, 20].map((n) => (
+          <div className="grid grid-cols-3 gap-2">
+            {[10, 15, 20, 25, 30, 40].map((n) => (
               <button key={n} onClick={() => setRounds(n)} className={`h-11 rounded-2xl text-sm font-extrabold transition-all active:scale-95 ${rounds === n ? 'text-white shadow-md' : 'bg-muted hover:bg-muted/70'}`} style={rounds === n ? { background: BRAND } : undefined}>
                 {n}
               </button>

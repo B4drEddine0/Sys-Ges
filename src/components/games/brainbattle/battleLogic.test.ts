@@ -6,6 +6,7 @@ import {
   rankPlayers,
   redactQuestion,
   selectQuestions,
+  shuffledMcqOrder,
   type McqQuestion,
   type Question,
   type TextQuestion,
@@ -17,10 +18,14 @@ const seededRng = (seed: number) => mulberry32(seed);
 
 describe('answer checking', () => {
   const mcq: McqQuestion = { id: 'x', type: 'mcq_general', difficulty: 'easy', category: 'c', prompt: 'p', options: ['a', 'b', 'c'], correctIndex: 1, explanation: 'e' };
-  it('MCQ matches only the exact correct index', () => {
-    expect(checkMcqAnswer(mcq, 1)).toBe(true);
-    expect(checkMcqAnswer(mcq, 0)).toBe(false);
-    expect(checkMcqAnswer(mcq, 2)).toBe(false);
+  it('MCQ matches only the exact correct index, mapped through the display shuffle', () => {
+    const seed = 42;
+    const order = shuffledMcqOrder(mcq, seed);
+    const shuffledCorrectIndex = order.indexOf(mcq.correctIndex);
+    expect(checkMcqAnswer(mcq, shuffledCorrectIndex, seed)).toBe(true);
+    for (let i = 0; i < mcq.options.length; i++) {
+      if (i !== shuffledCorrectIndex) expect(checkMcqAnswer(mcq, i, seed)).toBe(false);
+    }
   });
 
   const text: TextQuestion = { id: 'y', type: 'riddle', difficulty: 'easy', category: 'c', prompt: 'p', answer: 'الظفر', altAnswers: ['أظافر'], clues: [], explanation: 'e' };
@@ -85,6 +90,41 @@ describe('redactQuestion', () => {
     const pub = redactQuestion(q, 1) as any;
     expect(pub.answerLength).toBe(q.answer.replace(/\s/g, '').length);
     expect(pub.letters).toBeUndefined();
+  });
+  it('shuffles MCQ option display order instead of always keeping the authored order', () => {
+    const q: McqQuestion = { id: 'x', type: 'mcq_general', difficulty: 'easy', category: 'c', prompt: 'p', options: ['a', 'b', 'c', 'd', 'e'], correctIndex: 0, explanation: 'e' };
+    // Across many seeds, the correct answer's *text* ("a") should not always land in the
+    // same displayed slot — that was the actual bug being fixed.
+    const positions = new Set<number>();
+    for (let seed = 1; seed <= 30; seed++) {
+      const pub = redactQuestion(q, seed) as any;
+      positions.add(pub.options.indexOf('a'));
+      expect([...pub.options].sort()).toEqual([...q.options].sort()); // same set of options, just reordered
+    }
+    expect(positions.size).toBeGreaterThan(1);
+  });
+  it('reduces the number of clues for hard/expert questions, but never touches answerLength', () => {
+    const base: TextQuestion = { id: 'y', type: 'riddle', difficulty: 'easy', category: 'c', prompt: 'p', answer: 'test', clues: ['a', 'b', 'c', 'd'], explanation: 'e' };
+    const easy = redactQuestion({ ...base, difficulty: 'easy' }, 1) as any;
+    const hard = redactQuestion({ ...base, difficulty: 'hard' }, 1) as any;
+    const expert = redactQuestion({ ...base, difficulty: 'expert' }, 1) as any;
+    expect(easy.clues.length).toBe(4);
+    expect(hard.clues.length).toBeLessThan(easy.clues.length);
+    expect(expert.clues.length).toBeLessThan(hard.clues.length);
+    expect(expert.clues.length).toBeGreaterThanOrEqual(1); // never zero — always at least one hint
+    expect(easy.answerLength).toBe(expert.answerLength); // the length hint is difficulty-independent
+  });
+});
+
+describe('shuffledMcqOrder', () => {
+  it('is a true permutation — every original index appears exactly once', () => {
+    const q: McqQuestion = { id: 'x', type: 'mcq_general', difficulty: 'easy', category: 'c', prompt: 'p', options: ['a', 'b', 'c', 'd'], correctIndex: 2, explanation: 'e' };
+    const order = shuffledMcqOrder(q, 99);
+    expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
+  });
+  it('is deterministic for a given seed', () => {
+    const q: McqQuestion = { id: 'x', type: 'mcq_general', difficulty: 'easy', category: 'c', prompt: 'p', options: ['a', 'b', 'c', 'd'], correctIndex: 2, explanation: 'e' };
+    expect(shuffledMcqOrder(q, 123)).toEqual(shuffledMcqOrder(q, 123));
   });
 });
 
