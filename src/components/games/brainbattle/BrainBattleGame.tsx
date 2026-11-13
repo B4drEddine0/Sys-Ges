@@ -3,8 +3,8 @@ import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Crown, Trophy, Users, WifiOff, Zap } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { QTYPE_LABEL, isMcqQuestion, rankPlayers, type QType, type Difficulty } from './battleLogic';
-import { DEFAULT_SETTINGS, useBrainBattleGame, type BattlePublicState, type BattleSettings } from './useBrainBattleGame';
-import { Avatar, AnswerPanel, CountdownBar, ResultBadge, TypeBadge, colorFor, BRAND } from './BrainBattleParts';
+import { useBrainBattleGame, type BattlePublicState, type BattleSettings } from './useBrainBattleGame';
+import { Avatar, AnswerPanel, ResultBadge, TypeBadge, colorFor, BRAND } from './BrainBattleParts';
 
 interface Props {
   channel: any;
@@ -32,7 +32,7 @@ export function BrainBattleGame({ channel, isHost, myKey, playerKeys, playerName
         ) : (
           <>
             {state.phase === 'lobby' && <Lobby state={state} isHost={isHost} myKey={myKey} actions={actions} onLeave={onLeave} />}
-            {(state.phase === 'round_start' || state.phase === 'answering') && <RoundView state={state} myKey={myKey} actions={actions} getNow={getNow} />}
+            {(state.phase === 'round_start' || state.phase === 'answering') && <RoundView state={state} myKey={myKey} isHost={isHost} actions={actions} getNow={getNow} />}
             {state.phase === 'reveal' && <RevealView state={state} myKey={myKey} isHost={isHost} actions={actions} />}
             {state.phase === 'round_results' && <RoundResultsView state={state} myKey={myKey} isHost={isHost} actions={actions} />}
             {state.phase === 'final' && <FinalView state={state} myKey={myKey} isHost={isHost} actions={actions} onLeave={onLeave} />}
@@ -67,7 +67,6 @@ const ALL_DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
 function Lobby({ state, isHost, myKey, actions, onLeave }: { state: BattlePublicState; isHost: boolean; myKey: string; actions: ReturnType<typeof useBrainBattleGame>['actions']; onLeave?: () => void }) {
   const [rounds, setRounds] = useState(8);
-  const [seconds, setSeconds] = useState(25);
   const [types, setTypes] = useState<QType[]>(ALL_TYPES);
   const [difficulties, setDifficulties] = useState<Difficulty[]>(ALL_DIFFICULTIES);
   const players = Object.values(state.players).filter((p) => p.connected);
@@ -77,8 +76,6 @@ function Lobby({ state, isHost, myKey, actions, onLeave }: { state: BattlePublic
   const startGame = () => {
     const settings: BattleSettings = {
       totalRounds: rounds,
-      timeLimitMs: seconds * 1000,
-      graceMs: DEFAULT_SETTINGS.graceMs,
       types: types.length ? types : ALL_TYPES,
       difficulties: difficulties.length ? difficulties : ALL_DIFFICULTIES,
     };
@@ -120,16 +117,9 @@ function Lobby({ state, isHost, myKey, actions, onLeave }: { state: BattlePublic
               ))}
             </div>
           </div>
-          <div className="space-y-2">
-            <p className="text-sm font-bold text-muted-foreground">الوقت لكل سؤال</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[20, 25, 35].map((n) => (
-                <button key={n} onClick={() => setSeconds(n)} className={`h-11 rounded-2xl text-sm font-extrabold transition-all active:scale-95 ${seconds === n ? 'text-white shadow-md' : 'bg-muted hover:bg-muted/70'}`} style={seconds === n ? { background: BRAND } : undefined}>
-                  {n} ثانية
-                </button>
-              ))}
-            </div>
-          </div>
+          <p className="flex items-center justify-center gap-1.5 rounded-2xl bg-muted/60 px-3 py-2 text-xs font-bold text-muted-foreground">
+            ⏱️ بدون وقت محدد — كل لاعب يجاوب براحته، وتنتقل الجولة بمجرد أن يجاوب الجميع
+          </p>
           <div className="space-y-2">
             <p className="text-sm font-bold text-muted-foreground">أنواع التحدّي</p>
             <div className="flex flex-wrap gap-2">
@@ -183,14 +173,15 @@ function useTick(ms = 200) {
   }, [ms]);
 }
 
-function RoundView({ state, myKey, actions, getNow }: { state: BattlePublicState; myKey: string; actions: ReturnType<typeof useBrainBattleGame>['actions']; getNow: () => number }) {
-  useTick(200);
+function RoundView({ state, myKey, isHost, actions, getNow }: { state: BattlePublicState; myKey: string; isHost: boolean; actions: ReturnType<typeof useBrainBattleGame>['actions']; getNow: () => number }) {
+  useTick(300);
   const now = getNow();
   const me = state.players[myKey];
   const isActive = state.active.includes(myKey);
   const submitted = state.submittedKeys.includes(myKey);
   const others = state.active.filter((k) => k !== myKey);
   const submittedOthers = others.filter((k) => state.submittedKeys.includes(k));
+  const stillWaitingOn = others.filter((k) => !state.submittedKeys.includes(k) && state.players[k]);
 
   if (state.phase === 'round_start') {
     const n = state.phaseEndsAt ? Math.max(0, Math.ceil((state.phaseEndsAt - now) / 1000)) : 0;
@@ -213,7 +204,7 @@ function RoundView({ state, myKey, actions, getNow }: { state: BattlePublicState
     return (
       <div className="space-y-5 py-10 text-center">
         <p className="text-muted-foreground">ستنضم في الجولة القادمة</p>
-        {state.deadlineAt && <CountdownBar now={now} endsAt={state.deadlineAt} totalMs={state.timeLimitMs} />}
+        <p className="text-xs text-muted-foreground">بدون وقت محدد — اللعبة تنتظر الجميع</p>
       </div>
     );
   }
@@ -227,26 +218,20 @@ function RoundView({ state, myKey, actions, getNow }: { state: BattlePublicState
         {state.question && <TypeBadge type={state.question.type} difficulty={state.question.difficulty} />}
       </div>
 
-      {state.deadlineAt && <CountdownBar now={now} endsAt={state.deadlineAt} totalMs={state.timeLimitMs} />}
-
-      {state.firstSubmitAt && !submitted && (
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-xs font-bold text-rose-500">
-          ⏳ أحد اللاعبين أنهى — الوقت المتبقي محدود الآن!
-        </motion.p>
-      )}
-
       <div className={cardCls}>
         <p className="mb-4 text-center text-2xl font-black leading-relaxed">{state.question?.prompt}</p>
         {submitted ? (
           <div className="py-10 text-center">
-            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">✅ أُرسلت إجابتك</p>
-            <p className="mt-1 text-sm text-muted-foreground">بانتظار الباقين…</p>
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.6 }} className="mb-2 text-4xl">
+              ✅
+            </motion.div>
+            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">أُرسلت إجابتك</p>
+            <p className="mt-1 text-sm text-muted-foreground">خذ وقتك في مشاهدة الباقين وهم يجاوبون — لا يوجد وقت محدد</p>
           </div>
         ) : state.question ? (
           <AnswerPanel
             question={state.question}
             elapsedMs={state.roundStartAt ? now - state.roundStartAt : 0}
-            timeLimitMs={state.timeLimitMs}
             disabled={submitted}
             onSubmitMcq={(i) => actions.submitMcq(i)}
             onSubmitText={(t) => actions.submitText(t)}
@@ -262,14 +247,20 @@ function RoundView({ state, myKey, actions, getNow }: { state: BattlePublicState
           return (
             <span key={k} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${done ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
               <Avatar name={p.name} color={p.color} size={18} dim={!p.connected} />
-              {p.name} {done ? '✓' : '…'}
+              {p.name} {done ? '✓' : p.connected ? '…' : '⚠️'}
             </span>
           );
         })}
       </div>
       <p className="text-center text-xs text-muted-foreground">
-        {submittedOthers.length} / {others.length} من الآخرين أجابوا
+        {submittedOthers.length} / {others.length} من الآخرين أجابوا — تنتقل الجولة تلقائيًا عندما يجاوب الجميع
       </p>
+
+      {isHost && stillWaitingOn.length > 0 && (
+        <button onClick={actions.forceFinish} className="mx-auto block text-xs font-bold text-muted-foreground underline-offset-4 hover:underline">
+          لاعب عالق أو غير متصل؟ أنهِ الجولة الآن بدونه
+        </button>
+      )}
     </div>
   );
 }
@@ -386,7 +377,7 @@ function FinalView({ state, myKey, isHost, actions, onLeave }: { state: BattlePu
           key: k,
           score: state.scores[k] ?? 0,
           correctCount: (state.history[k] ?? []).filter((p) => p > 0).length,
-          totalTimeMs: 0,
+          totalTimeMs: (state.timeHistory[k] ?? []).reduce((a, b) => a + b, 0),
         })),
       ),
     [state],
@@ -395,15 +386,18 @@ function FinalView({ state, myKey, isHost, actions, onLeave }: { state: BattlePu
   const heights: Record<number, string> = { 0: 'h-28', 1: 'h-36', 2: 'h-20' };
   const medalRank = (r: (typeof rows)[number]) => rows.indexOf(r);
 
+  // Genuinely "fastest" — average time-to-correct-answer, not a proxy off points (points
+  // no longer carry a speed component in untimed friends mode, see computePoints).
   const fastest = useMemo(() => {
     const candidates = rows
       .map((r) => {
-        const scored = (state.history[r.key] ?? []).filter((p) => p > 0);
-        return scored.length ? { key: r.key, avg: scored.reduce((a, b) => a + b, 0) / scored.length } : null;
+        const times = state.timeHistory[r.key] ?? [];
+        return times.length ? { key: r.key, avg: times.reduce((a, b) => a + b, 0) / times.length } : null;
       })
       .filter((x): x is { key: string; avg: number } => x !== null);
-    return candidates.reduce<{ key: string; avg: number } | null>((best, c) => (!best || c.avg > best.avg ? c : best), null);
-  }, [rows, state.history]);
+    // Lower average time = faster.
+    return candidates.reduce<{ key: string; avg: number } | null>((best, c) => (!best || c.avg < best.avg ? c : best), null);
+  }, [rows, state.timeHistory]);
 
   const mostAccurate = useMemo(() => {
     const candidates = rows

@@ -52,26 +52,27 @@ export function CountdownBar({ now, endsAt, totalMs }: { now: number; endsAt: nu
   );
 }
 
-/** Reveals clues one at a time, paced across the time limit, for hidden_word/riddle types. */
-function useProgressiveClues(clues: string[], elapsedMs: number, timeLimitMs: number) {
+// Reveals clues one at a time on a fixed real-time cadence — independent of any round
+// deadline, so it works the same whether the question is timed (solo) or untimed
+// (friends-mode multiplayer, which has no deadline to pace against at all).
+const CLUE_INTERVAL_MS = 5000;
+function useProgressiveClues(clues: string[], elapsedMs: number) {
   const shown = useMemo(() => {
     if (clues.length === 0) return 0;
-    const frac = Math.max(0, Math.min(1, elapsedMs / Math.max(1, timeLimitMs)));
-    return Math.min(clues.length, 1 + Math.floor(frac * clues.length));
-  }, [clues.length, elapsedMs, timeLimitMs]);
+    return Math.min(clues.length, 1 + Math.floor(elapsedMs / CLUE_INTERVAL_MS));
+  }, [clues.length, elapsedMs]);
   return clues.slice(0, shown);
 }
 
 interface AnswerPanelProps {
   question: PublicQuestion;
   elapsedMs: number;
-  timeLimitMs: number;
   disabled: boolean;
   onSubmitMcq: (index: number) => void;
   onSubmitText: (text: string) => void;
 }
 
-export function AnswerPanel({ question, elapsedMs, timeLimitMs, disabled, onSubmitMcq, onSubmitText }: AnswerPanelProps) {
+export function AnswerPanel({ question, elapsedMs, disabled, onSubmitMcq, onSubmitText }: AnswerPanelProps) {
   const [picked, setPicked] = useState<number | null>(null);
   const [text, setText] = useState('');
   const [tiles, setTiles] = useState<number[]>([]); // indices into letters[], in the order tapped
@@ -92,7 +93,7 @@ export function AnswerPanel({ question, elapsedMs, timeLimitMs, disabled, onSubm
 
   // Called unconditionally (Rules of Hooks) — harmless no-op for MCQ questions, which
   // carry no `clues` field.
-  const clues = useProgressiveClues('clues' in question ? question.clues : [], elapsedMs, timeLimitMs);
+  const clues = useProgressiveClues('clues' in question ? question.clues : [], elapsedMs);
 
   if (question.type === 'mcq_general' || question.type === 'mcq_proverb' || question.type === 'mcq_connection') {
     return (
@@ -169,6 +170,13 @@ export function AnswerPanel({ question, elapsedMs, timeLimitMs, disabled, onSubm
   // hidden_word / riddle
   return (
     <div className="space-y-4">
+      {'answerLength' in question && question.answerLength > 0 && (
+        <p className="text-center text-sm font-bold text-muted-foreground">
+          الإجابة من <span className="tabular-nums text-foreground">{question.answerLength}</span> حرف
+          {/* Letter count only — never which letters — so it resolves "do I write the
+              article 'ال' or not" without giving away the answer. */}
+        </p>
+      )}
       <div className="space-y-2">
         <AnimatePresence initial={false}>
           {clues.map((c, i) => (

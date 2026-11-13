@@ -4,8 +4,8 @@ import { randomSeed } from '../shared/rng';
 import {
   checkMcqAnswer,
   checkTextAnswer,
-  computeDeadline,
   computePoints,
+  isMcqQuestion,
   redactQuestion,
   selectQuestions,
   type Difficulty,
@@ -30,24 +30,25 @@ export interface RoundResult {
   key: string;
   answered: boolean;
   correct: boolean;
-  timeMs: number;
+  timeMs: number; // kept for the "fastest player" stat only — no longer affects scoring, see below
   points: number;
   isFirstCorrect: boolean;
   display: string; // what they submitted, or '' if they didn't answer — safe to show post-reveal
 }
 
+// Friends-mode multiplayer is untimed by design: every player answers at their own pace,
+// and a round ends once everyone has submitted (or the host manually ends it — see
+// `forceFinish`, the escape hatch for a player who disconnects mid-round). Scoring
+// therefore carries no speed component here — see computePoints's `timeLimitMs: null`.
+// Solo mode is unaffected and keeps its own per-question timer (useSoloBattle.ts).
 export interface BattleSettings {
   totalRounds: number;
-  timeLimitMs: number;
-  graceMs: number;
   types: QType[];
   difficulties: Difficulty[];
 }
 
 export const DEFAULT_SETTINGS: BattleSettings = {
   totalRounds: 8,
-  timeLimitMs: 25000,
-  graceMs: 10000,
   types: ['mcq_general', 'mcq_proverb', 'mcq_connection', 'scramble', 'hidden_word', 'riddle'],
   difficulties: ['easy', 'medium', 'hard', 'expert'],
 };
@@ -60,22 +61,21 @@ export interface BattlePublicState {
   phase: BattlePhase;
   round: number;
   totalRounds: number;
+  types: QType[];
+  difficulties: Difficulty[];
   players: Record<string, BBPlayer>;
   active: string[];
   question: PublicQuestion | null;
   revealQuestion: Question | null;
   roundStartAt: number | null;
-  phaseEndsAt: number | null; // used for round_start/reveal/round_results display timers
-  timeLimitMs: number;
-  graceMs: number;
-  firstSubmitAt: number | null;
-  deadlineAt: number | null;
+  phaseEndsAt: number | null; // used for round_start/reveal/round_results display timers only — never "answering"
   submittedKeys: string[];
   results: Record<string, RoundResult> | null;
   scores: Record<string, number>;
   prevScores: Record<string, number>;
   history: Record<string, number[]>;
   firstCorrectHistory: Record<string, number>; // how many rounds each player was first-correct in
+  timeHistory: Record<string, number[]>; // answer time per round, correct answers only — stats/podium use only, not scoring
   usedIds: string[];
   seed: number;
   now: number;
@@ -87,22 +87,21 @@ function initialLobbyState(): BattlePublicState {
     phase: 'lobby',
     round: 0,
     totalRounds: DEFAULT_SETTINGS.totalRounds,
+    types: DEFAULT_SETTINGS.types,
+    difficulties: DEFAULT_SETTINGS.difficulties,
     players: {},
     active: [],
     question: null,
     revealQuestion: null,
     roundStartAt: null,
     phaseEndsAt: null,
-    timeLimitMs: DEFAULT_SETTINGS.timeLimitMs,
-    graceMs: DEFAULT_SETTINGS.graceMs,
-    firstSubmitAt: null,
-    deadlineAt: null,
     submittedKeys: [],
     results: null,
     scores: {},
     prevScores: {},
     history: {},
     firstCorrectHistory: {},
+    timeHistory: {},
     usedIds: [],
     seed: 0,
     now: Date.now(),
@@ -164,7 +163,10 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
   // ---------- host round logic ----------
   const startRound = (settings?: BattleSettings) => {
     const s = stateRef.current!;
-    const cfg: BattleSettings = settings ?? { totalRounds: s.totalRounds, timeLimitMs: s.timeLimitMs, graceMs: s.graceMs, types: DEFAULT_SETTINGS.types, difficulties: DEFAULT_SETTINGS.difficulties };
+    // Settings persist from the lobby across every round of the game — only the initial
+    // `start()` call passes them explicitly; later rounds reuse whatever's already in
+    // state rather than silently falling back to "every type, every difficulty".
+    const cfg: BattleSettings = settings ?? { totalRounds: s.totalRounds, types: s.types, difficulties: s.difficulties };
     // Active players for this round = whoever's currently connected. For round 1 that's
     // the whole lobby roster; for later rounds it's recomputed fresh each time too (not
     // carried over from the previous round's snapshot), so a player who joined mid-game
@@ -181,16 +183,14 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
       phase: 'round_start',
       round: s.round + 1,
       totalRounds: cfg.totalRounds,
-      timeLimitMs: cfg.timeLimitMs,
-      graceMs: cfg.graceMs,
+      types: cfg.types,
+      difficulties: cfg.difficulties,
       active: activeFinal,
       question: question ? redactQuestion(question, seed) : null,
       revealQuestion: null,
       seed,
       roundStartAt: null,
       phaseEndsAt: Date.now() + COUNTDOWN_MS,
-      firstSubmitAt: null,
-      deadlineAt: null,
       submittedKeys: [],
       results: null,
       usedIds: question ? [...s.usedIds, question.id].slice(-QUESTION_BANK.length) : s.usedIds,
@@ -198,37 +198,38 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
   };
 
   const toAnswering = () => {
-    const s = stateRef.current!;
-    const now = Date.now();
-    commit({ phase: 'answering', roundStartAt: now, deadlineAt: now + s.timeLimitMs });
+    // No deadline is set here on purpose — friends mode is untimed; see finishRound for
+    // how the round actually ends (everyone's answered, or the host ends it manually).
+    commit({ phase: 'answering', roundStartAt: Date.now() });
   };
 
   const finishRound = () => {
     const s = stateRef.current!;
     const q = liveQuestionRef.current;
-    // Idempotency guard: this can be scheduled from two independent places — the
-    // deadline timer effect and the "everyone already answered" fast path right after a
-    // submission — and if their timing ever overlaps (e.g. the last submission lands at
-    // almost exactly the deadline), both could fire. Without this check, the second call
-    // would re-run scoring against the *already updated* scores and double-award every
-    // player's round points.
+    // Idempotency guard: this can be scheduled from two independent places — a manual
+    // host force-finish and the "everyone already answered" fast path right after a
+    // submission — and if their timing ever overlaps, both could fire. Without this
+    // check, the second call would re-run scoring against the *already updated* scores
+    // and double-award every player's round points.
     if (!q || s.phase !== 'answering') return;
     const results: Record<string, RoundResult> = { ...(s.results ?? {}) };
     s.active.forEach((key) => {
       if (!results[key]) {
-        results[key] = { key, answered: false, correct: false, timeMs: s.timeLimitMs, points: 0, isFirstCorrect: false, display: '' };
+        results[key] = { key, answered: false, correct: false, timeMs: 0, points: 0, isFirstCorrect: false, display: '' };
       }
     });
     const scores = { ...s.scores };
     const history = { ...s.history };
     const firstCorrectHistory = { ...s.firstCorrectHistory };
+    const timeHistory = { ...s.timeHistory };
     s.active.forEach((key) => {
       const r = results[key];
       scores[key] = (scores[key] ?? 0) + r.points;
       history[key] = [...(history[key] ?? []), r.points];
       if (r.isFirstCorrect) firstCorrectHistory[key] = (firstCorrectHistory[key] ?? 0) + 1;
+      if (r.correct) timeHistory[key] = [...(timeHistory[key] ?? []), r.timeMs];
     });
-    commit({ phase: 'reveal', revealQuestion: q, results, scores, prevScores: s.scores, history, firstCorrectHistory, phaseEndsAt: Date.now() + REVEAL_MS });
+    commit({ phase: 'reveal', revealQuestion: q, results, scores, prevScores: s.scores, history, firstCorrectHistory, timeHistory, phaseEndsAt: Date.now() + REVEAL_MS });
   };
 
   const toRoundResults = () => commit({ phase: 'round_results', phaseEndsAt: Date.now() + RESULTS_MS });
@@ -244,30 +245,20 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
     const q = liveQuestionRef.current;
     if (!s || !q || s.phase !== 'answering' || !s.active.includes(key)) return;
     if (s.submittedKeys.includes(key)) return; // duplicate submission — ignored
-    const now = Date.now();
-    if (s.deadlineAt != null && now > s.deadlineAt) return; // too late — host clock is authoritative, not the client's
 
-    const correct = q.type === 'mcq_general' || q.type === 'mcq_proverb' || q.type === 'mcq_connection' ? checkMcqAnswer(q as McqQuestion, payload.chosenIndex ?? -1) : checkTextAnswer(q as TextQuestion, payload.text ?? '');
-    const timeMs = Math.max(0, now - (s.roundStartAt ?? now));
+    const correct = isMcqQuestion(q) ? checkMcqAnswer(q, payload.chosenIndex ?? -1) : checkTextAnswer(q as TextQuestion, payload.text ?? '');
+    const timeMs = Math.max(0, Date.now() - (s.roundStartAt ?? Date.now()));
     const isFirstCorrect = correct && firstCorrectKeyRef.current === null;
     if (isFirstCorrect) firstCorrectKeyRef.current = key;
-    const points = computePoints({ correct, difficulty: q.difficulty, timeMs, timeLimitMs: s.timeLimitMs, isFirstCorrect });
-    const display =
-      q.type === 'mcq_general' || q.type === 'mcq_proverb' || q.type === 'mcq_connection'
-        ? (q as McqQuestion).options[payload.chosenIndex ?? -1] ?? ''
-        : (payload.text ?? '').trim();
+    // Untimed scoring: difficulty + correctness only, no speed component (see the
+    // BattleSettings doc comment for why). `timeMs` is still recorded for the "fastest
+    // player" end-of-game stat, it just no longer feeds points.
+    const points = computePoints({ correct, difficulty: q.difficulty, timeMs, timeLimitMs: null, isFirstCorrect });
+    const display = isMcqQuestion(q) ? q.options[payload.chosenIndex ?? -1] ?? '' : (payload.text ?? '').trim();
 
     const results = { ...(s.results ?? {}), [key]: { key, answered: true, correct, timeMs, points, isFirstCorrect, display } };
     const submittedKeys = [...s.submittedKeys, key];
-
-    let firstSubmitAt = s.firstSubmitAt;
-    let deadlineAt = s.deadlineAt;
-    if (firstSubmitAt == null) {
-      firstSubmitAt = now;
-      deadlineAt = computeDeadline(s.roundStartAt ?? now, s.timeLimitMs, firstSubmitAt, s.graceMs);
-    }
-
-    commit({ results, submittedKeys, firstSubmitAt, deadlineAt });
+    commit({ results, submittedKeys });
 
     const allIn = s.active.every((k) => submittedKeys.includes(k));
     if (allIn) setTimeout(finishRound, 0);
@@ -294,15 +285,12 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
     if (JSON.stringify(players) !== JSON.stringify(s.players)) hostApi.current.commit({ players });
   }, [isHost, roster]);
 
-  // Host round timers.
+  // Host display timers — note 'answering' is deliberately absent: there is no automatic
+  // timeout for it anymore (see finishRound / forceFinish).
   useEffect(() => {
     if (!isHost || !state) return;
     if (state.phase === 'round_start' && state.phaseEndsAt) {
       const t = setTimeout(() => hostApi.current.toAnswering(), Math.max(0, state.phaseEndsAt - Date.now()));
-      return () => clearTimeout(t);
-    }
-    if (state.phase === 'answering' && state.deadlineAt) {
-      const t = setTimeout(() => hostApi.current.finishRound(), Math.max(0, state.deadlineAt - Date.now()));
       return () => clearTimeout(t);
     }
     if (state.phase === 'reveal' && state.phaseEndsAt) {
@@ -314,10 +302,7 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
       return () => clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, state?.phase, state?.deadlineAt, state?.phaseEndsAt, state?.round]);
-
-  // Re-check the deadline whenever it tightens mid-"answering" (a new first-submission
-  // arrived) — the effect above already re-runs since `state.deadlineAt` is a dependency.
+  }, [isHost, state?.phase, state?.phaseEndsAt, state?.round]);
 
   // ---------- messaging ----------
   useEffect(() => {
@@ -371,13 +356,20 @@ export function useBrainBattleGame({ channel, isHost, myKey, playerKeys, playerN
     else if (ph === 'round_results') hostApi.current.advanceAfterResults();
   };
 
+  /** Host-only escape hatch: ends the round right now even if someone hasn't answered
+   * (e.g. they disconnected) — the only way a round ever ends besides everyone answering,
+   * now that there's no timer. */
+  const forceFinish = () => {
+    if (isHost && stateRef.current?.phase === 'answering') hostApi.current.finishRound();
+  };
+
   const restart = () => {
-    if (isHost) hostApi.current.commit({ phase: 'lobby', round: 0, scores: {}, prevScores: {}, history: {}, firstCorrectHistory: {}, usedIds: stateRef.current?.usedIds ?? [] });
+    if (isHost) hostApi.current.commit({ phase: 'lobby', round: 0, scores: {}, prevScores: {}, history: {}, firstCorrectHistory: {}, timeHistory: {}, usedIds: stateRef.current?.usedIds ?? [] });
   };
 
   const getNow = useCallback(() => Date.now() + offsetRef.current, []);
 
   const hostMissing = !isHost && !hostConnected;
 
-  return { state, actions: { start, submitMcq, submitText, skipAhead, restart }, getNow, hostMissing };
+  return { state, actions: { start, submitMcq, submitText, skipAhead, forceFinish, restart }, getNow, hostMissing };
 }

@@ -143,7 +143,7 @@ function QuestionPhase({
       <CountdownBar now={now} endsAt={endsAt} totalMs={timeLimitMs} />
       <div className={cardCls}>
         <p className="mb-4 text-center text-2xl font-black leading-relaxed">{publicQuestion.prompt}</p>
-        <AnswerPanel question={publicQuestion} elapsedMs={elapsed} timeLimitMs={timeLimitMs} disabled={false} onSubmitMcq={onSubmitMcq} onSubmitText={onSubmitText} />
+        <AnswerPanel question={publicQuestion} elapsedMs={elapsed} disabled={false} onSubmitMcq={onSubmitMcq} onSubmitText={onSubmitText} />
       </div>
     </div>
   );

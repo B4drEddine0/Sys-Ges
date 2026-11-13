@@ -3,7 +3,7 @@
 // useBrainBattleGame.ts (multiplayer, host-authoritative) and useSoloBattle.ts (solo,
 // purely local) for the two drivers built on top of this.
 
-import { normalizeAnswerText } from '../shared/arabicText';
+import { normalizeAnswerText, stripArticle } from '../shared/arabicText';
 import { mulberry32, shuffleWithRng as shuffle } from '../shared/rng';
 
 export type QType = 'mcq_general' | 'mcq_proverb' | 'mcq_connection' | 'scramble' | 'hidden_word' | 'riddle';
@@ -54,7 +54,7 @@ export type Question = McqQuestion | TextQuestion;
 /** What's safe to show players before the answer is known — no correct option/answer. */
 export type PublicQuestion =
   | (Omit<McqQuestion, 'correctIndex'> & { correctIndex?: undefined })
-  | (Omit<TextQuestion, 'answer' | 'altAnswers'> & { answer?: undefined; altAnswers?: undefined; letters?: string[] });
+  | (Omit<TextQuestion, 'answer' | 'altAnswers'> & { answer?: undefined; altAnswers?: undefined; letters?: string[]; answerLength: number });
 
 export function isMcqQuestion(q: Question): q is McqQuestion {
   return q.type === 'mcq_general' || q.type === 'mcq_proverb' || q.type === 'mcq_connection';
@@ -66,8 +66,12 @@ export function redactQuestion(q: Question, seed: number): PublicQuestion {
     return { id, type, difficulty, category, prompt, explanation, options, correctIndex: undefined };
   }
   const { id, type, difficulty, category, prompt, explanation, clues } = q;
-  const letters = type === 'scramble' ? shuffle([...q.answer.replace(/\s/g, '')], mulberry32(seed)) : undefined;
-  return { id, type, difficulty, category, prompt, explanation, clues, answer: undefined, altAnswers: undefined, letters };
+  const bareAnswer = q.answer.replace(/\s/g, '');
+  const letters = type === 'scramble' ? shuffle([...bareAnswer], mulberry32(seed)) : undefined;
+  // Letter count alone isn't a spoiler — it doesn't reveal any letter — but it resolves a
+  // real source of unfair misses: without it, a player has no way to know whether the
+  // expected form includes "ال", is one word or several, etc.
+  return { id, type, difficulty, category, prompt, explanation, clues, answer: undefined, altAnswers: undefined, letters, answerLength: bareAnswer.length };
 }
 
 // ---------------------------------------------------------------- answer checking
@@ -76,11 +80,17 @@ export function checkMcqAnswer(q: McqQuestion, chosenIndex: number): boolean {
   return chosenIndex === q.correctIndex;
 }
 
+// The leading "ال" (definite article) is stripped on both sides before comparing — a
+// player who answers "وجه" for a target stored as "الوجه" (or vice versa) is answering
+// correctly in any normal sense, and without this a correct answer could be marked wrong
+// just because the player didn't guess whether the bank's author happened to include the
+// article. This is in addition to whatever specific altAnswers a question already lists.
 export function checkTextAnswer(q: TextQuestion, raw: string): boolean {
   const given = normalizeAnswerText(raw);
   if (!given) return false;
+  const givenBare = stripArticle(given);
   const candidates = [q.answer, ...(q.altAnswers ?? [])].map(normalizeAnswerText);
-  return candidates.includes(given);
+  return candidates.some((c) => c === given || c === givenBare || stripArticle(c) === givenBare);
 }
 
 // ---------------------------------------------------------------- selection / anti-repetition
@@ -118,27 +128,18 @@ export const FIRST_CORRECT_BONUS = 30;
  * difficulty) is at least equal to the maximum possible speed bonus (100), so a slow
  * correct answer always beats a fast wrong one, and knowledge is never made irrelevant
  * by reflexes alone.
+ *
+ * `timeLimitMs: null` means untimed play (friends-mode multiplayer, each player at their
+ * own pace) — the speed bonus is skipped entirely rather than prorated against nothing,
+ * since there's no time pressure to reward. "First correct" is still meaningful untimed
+ * (first to submit a correct answer, in arrival order) and keeps its own small bonus.
  */
-export function computePoints(opts: { correct: boolean; difficulty: Difficulty; timeMs: number; timeLimitMs: number; isFirstCorrect: boolean; penalty?: number }): number {
+export function computePoints(opts: { correct: boolean; difficulty: Difficulty; timeMs: number; timeLimitMs: number | null; isFirstCorrect: boolean; penalty?: number }): number {
   if (!opts.correct) return (opts.penalty ?? 0) === 0 ? 0 : -(opts.penalty ?? 0);
   const base = DIFFICULTY_LABEL[opts.difficulty].base;
-  const frac = Math.max(0, Math.min(1, 1 - opts.timeMs / Math.max(1, opts.timeLimitMs)));
-  const speedBonus = Math.round(SPEED_BONUS_MAX * frac);
+  const speedBonus =
+    opts.timeLimitMs == null ? 0 : Math.round(SPEED_BONUS_MAX * Math.max(0, Math.min(1, 1 - opts.timeMs / Math.max(1, opts.timeLimitMs))));
   return base + speedBonus + (opts.isFirstCorrect ? FIRST_CORRECT_BONUS : 0);
-}
-
-// ---------------------------------------------------------------- grace-period deadline
-
-/**
- * The round ends at the *earlier* of the original time limit and (first submission time +
- * grace period) — recompute this every time a new first-submission arrives (there's only
- * ever one "first", so in practice this fires once per round, but it's written to be safe
- * to call repeatedly / out of order).
- */
-export function computeDeadline(roundStartAt: number, timeLimitMs: number, firstSubmitAt: number | null, graceMs: number): number {
-  const hardDeadline = roundStartAt + timeLimitMs;
-  if (firstSubmitAt == null) return hardDeadline;
-  return Math.min(hardDeadline, firstSubmitAt + graceMs);
 }
 
 // ---------------------------------------------------------------- ranking

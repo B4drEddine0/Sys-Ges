@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   checkMcqAnswer,
   checkTextAnswer,
-  computeDeadline,
   computePoints,
   rankPlayers,
   redactQuestion,
@@ -49,6 +48,13 @@ describe('answer checking', () => {
     // "سماء" (sky) vs "سما" (a different, unrelated spelling) must stay distinct.
     expect(checkTextAnswer({ ...text, answer: 'سماء' }, 'سما')).toBe(false);
   });
+  it('accepts the answer with or without a leading "ال" even when no altAnswer lists it', () => {
+    const face: TextQuestion = { ...text, answer: 'الوجه', altAnswers: [] };
+    expect(checkTextAnswer(face, 'وجه')).toBe(true); // bare noun, stored form has the article
+    expect(checkTextAnswer(face, 'الوجه')).toBe(true); // exact match still works
+    const hole: TextQuestion = { ...text, answer: 'حفرة', altAnswers: [] };
+    expect(checkTextAnswer(hole, 'الحفرة')).toBe(true); // article added, stored form is bare
+  });
 });
 
 describe('redactQuestion', () => {
@@ -73,6 +79,12 @@ describe('redactQuestion', () => {
     const a = redactQuestion(q, 777) as any;
     const b = redactQuestion(q, 777) as any;
     expect(a.letters).toEqual(b.letters);
+  });
+  it('exposes the answer length for hidden_word/riddle, without exposing the letters themselves', () => {
+    const q = QUESTION_BANK.find((x): x is TextQuestion => x.type === 'riddle')!;
+    const pub = redactQuestion(q, 1) as any;
+    expect(pub.answerLength).toBe(q.answer.replace(/\s/g, '').length);
+    expect(pub.letters).toBeUndefined();
   });
 });
 
@@ -130,20 +142,15 @@ describe('scoring', () => {
     const fastEasy = computePoints({ correct: true, difficulty: 'easy', timeMs: 0, timeLimitMs: 20000, isFirstCorrect: false });
     expect(slowExpert).toBeGreaterThan(fastEasy);
   });
-});
-
-describe('grace-period deadline', () => {
-  const start = 1_000_000;
-  it('without any submission, the deadline is the full time limit', () => {
-    expect(computeDeadline(start, 20000, null, 10000)).toBe(start + 20000);
+  it('untimed play (timeLimitMs: null) skips the speed bonus entirely — correctness + difficulty only', () => {
+    const instant = computePoints({ correct: true, difficulty: 'medium', timeMs: 0, timeLimitMs: null, isFirstCorrect: false });
+    const slow = computePoints({ correct: true, difficulty: 'medium', timeMs: 999_999, timeLimitMs: null, isFirstCorrect: false });
+    expect(instant).toBe(150); // base only, no speed bonus
+    expect(instant).toBe(slow); // elapsed time has zero effect when untimed
   });
-  it('the first submission starts a grace period that can shorten the deadline', () => {
-    const firstSubmitAt = start + 3000;
-    expect(computeDeadline(start, 20000, firstSubmitAt, 10000)).toBe(firstSubmitAt + 10000); // 13000, well under the 20000 hard cap
-  });
-  it('the grace period can never extend the round past the original hard deadline', () => {
-    const firstSubmitAt = start + 18000; // grace would end at 28000, past the 20000 hard cap
-    expect(computeDeadline(start, 20000, firstSubmitAt, 10000)).toBe(start + 20000);
+  it('first-correct bonus still applies when untimed', () => {
+    const first = computePoints({ correct: true, difficulty: 'easy', timeMs: 5000, timeLimitMs: null, isFirstCorrect: true });
+    expect(first).toBe(130); // 100 base + 30 first-correct, no speed component
   });
 });
 
